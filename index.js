@@ -53,6 +53,12 @@ const commands = [
         .setName('lock')
         .setDescription('Lock the content signup')
     )
+    .addSubcommand(sub =>
+  sub
+    .setName('end')
+    .setDescription('End and delete the content signup')
+)
+
 ].map(cmd => cmd.toJSON())
 
 
@@ -107,7 +113,41 @@ client.on('interactionCreate', async interaction => {
   return // 🔴 THIS WAS MISSING
 }
 
+if (sub === 'end') {
+  const data = store.get(interaction.channelId)
 
+  if (!data) {
+    await interaction.reply({ content: '❌ No active content.', ephemeral: true })
+    return
+  }
+
+  if (interaction.user.id !== data.hostId) {
+    await interaction.reply({ content: '❌ Only the host can end the content.', ephemeral: true })
+    return
+  }
+
+  await interaction.deferReply({ ephemeral: true })
+
+  // Find the bot message in this channel
+  const messages = await interaction.channel.messages.fetch({ limit: 20 })
+  const botMessage = messages.find(m => m.author.id === interaction.client.user.id)
+
+  // Delete thread if exists
+  if (botMessage?.hasThread) {
+    await botMessage.thread.delete().catch(() => {})
+  }
+
+  // Delete embed message
+  if (botMessage) {
+    await botMessage.delete().catch(() => {})
+  }
+
+  // Remove from store
+  store.remove(interaction.channelId)
+
+  await interaction.editReply('✅ Content ended and cleaned up.')
+  return
+}
 
     if (sub === 'start') {
       try {
@@ -224,25 +264,33 @@ client.on('interactionCreate', async interaction => {
 
 
 
-    client.on('messageCreate', async message => {
+ client.on('messageCreate', async message => {
   if (!message.channel.isThread()) return
   if (message.author.bot) return
-  if (!role) {
-  await message.reply('❌ Invalid role. Try `x dps`, `x healer`, `x tank`.')
-  return
-}
-
 
   const parts = message.content.toLowerCase().trim().split(/\s+/)
   if (parts[0] !== 'x') return
 
   const alias = parts[1]
   const role = ROLE_ALIASES[alias]
-  if (!role) return
+
+  if (!role) {
+    await message.reply('❌ Invalid role. Try `x dps`, `x healer`, `x tank`.')
+    return
+  }
 
   const parentChannelId = message.channel.parentId
   const data = store.get(parentChannelId)
-  if (!data || data.locked) return
+
+  if (!data) {
+    await message.reply('❌ No active content found for this thread.')
+    return
+  }
+
+  if (data.locked) {
+    await message.reply('🔒 Signups are locked.')
+    return
+  }
 
   const userId = message.author.id
   const now = new Date()
@@ -256,24 +304,19 @@ client.on('interactionCreate', async interaction => {
 
   // ⏰ Handle x out / cancel
   if (role === 'out') {
-    if (now > lockTime) {
-      // Late cancel → Absence
-      for (const r in data.roles) {
-        data.roles[r] = data.roles[r].filter(u => u.userId !== userId)
-      }
+    // Remove user from all roles
+    for (const r in data.roles) {
+      data.roles[r] = data.roles[r].filter(u => u.userId !== userId)
+    }
 
+    if (now > lockTime) {
       data.orderCounter++
       data.roles.absence.push({
         userId,
         order: data.orderCounter
       })
-
       await message.react('⚠️')
     } else {
-      // Early cancel → remove completely
-      for (const r in data.roles) {
-        data.roles[r] = data.roles[r].filter(u => u.userId !== userId)
-      }
       await message.react('❌')
     }
 
@@ -288,7 +331,7 @@ client.on('interactionCreate', async interaction => {
     return
   }
 
-  // Remove user from all roles
+  // Remove user from all roles first
   for (const r in data.roles) {
     data.roles[r] = data.roles[r].filter(u => u.userId !== userId)
   }
@@ -298,10 +341,6 @@ client.on('interactionCreate', async interaction => {
     await message.reply(`❌ **${role.toUpperCase()}** is full.`)
     return
   }
-if (!data) {
-  await message.reply('❌ No active content found for this thread.')
-  return
-}
 
   data.orderCounter++
   data.roles[role].push({
@@ -310,9 +349,12 @@ if (!data) {
   })
 
   await message.react('✅')
+  await sendSignupConfirmation(message, role)
   await cleanup(message)
   await refreshEmbed(message, data)
+
 })
+
 
 
 
@@ -364,6 +406,20 @@ async function refreshEmbed(message, data) {
   if (parentMessage) {
     await updateEmbed(parentMessage, data)
   }
+}
+
+async function sendSignupConfirmation(message, role) {
+  const embed = new EmbedBuilder()
+    .setColor(0x2ecc71) // green
+    .setTitle('SIGN UP SUCCESSFUL ✅')
+    .setDescription(
+      `**USER:** ${message.author}\n` +
+      `**ROLE:** ${role.toUpperCase()}`
+    )
+    .setFooter({ text: 'Powered by sinner-bot ⚡' })
+    .setTimestamp()
+
+  const reply = await message.reply({ embeds: [embed] })
 }
 
 function formatDiscordTimestamp(date) {

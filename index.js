@@ -235,7 +235,8 @@ if (sub === 'end') {
             .setDescription(
                 `**Host:** <@${interaction.user.id}>\n` +
                 `🕒 **Mass Time (UTC):** ${formatDiscordTimestamp(massTime)}\n` +
-                `🔒 **Manual Lock:** Use \`/content lock\` to lock signups`
+                `� **Voice Channel:** <#${voiceChannel.id}>\n` +
+                `�🔒 **Manual Lock:** Use \`/content lock\` to lock signups`
             )
 
           .addFields(
@@ -252,9 +253,12 @@ if (sub === 'end') {
           fetchReply: true
         })
 
-        await msg.startThread({
+        const thread = await msg.startThread({
           name: `${title} Signups`
         })
+
+        // Store thread ID for later use
+        contentData.threadId = thread.id
       } catch (err) {
         console.error('❌ Content start error:', err)
 
@@ -460,15 +464,25 @@ async function markLateAtMass(channel, data) {
 
   const present = new Set(vc.members.map(m => m.id))
 
-  for (const role of Object.keys(data.roles)) {
+  // Skip checking absence and bench roles, and skip the host
+  const rolesToCheck = ['tank', 'healer', 'dps', 'caller']
+  
+  for (const role of rolesToCheck) {
     for (const user of data.roles[role]) {
+      // Skip the host
+      if (user.userId === data.hostId) continue
+      
       if (!present.has(user.userId)) {
         data.attendance.late.add(user.userId)
       }
     }
   }
 
-  channel.send(`⏰ **Mass started. Late check complete.**`)
+  // Post to thread instead of parent channel
+  const thread = channel.guild.channels.cache.get(data.threadId)
+  if (thread) {
+    await thread.send(`⏰ **Mass started. Late check complete.**`)
+  }
 }
 
 async function markAbsentAfterGrace(channel, data) {
@@ -482,6 +496,12 @@ async function markAbsentAfterGrace(channel, data) {
       // Mark absent (FINAL)
       data.attendance.absent.add(userId)
 
+      // Remove from their current role
+      for (const role of Object.keys(data.roles)) {
+        data.roles[role] = data.roles[role].filter(u => u.userId !== userId)
+      }
+
+      // Add to absence
       data.roles.absence.push({
         userId,
         order: ++data.orderCounter
@@ -498,7 +518,12 @@ async function markAbsentAfterGrace(channel, data) {
 
     if (botMessage) {
       await updateEmbed(botMessage, data)
-      await botMessage.reply('🚫 **Grace period ended — absences finalized.**')
+    }
+
+    // Post to thread instead of replying to embed
+    const thread = channel.guild.channels.cache.get(data.threadId)
+    if (thread) {
+      await thread.send('🚫 **Grace period ended — absences finalized.**')
     }
   } catch (err) {
     console.error('Final absence error:', err)

@@ -11,5 +11,10 @@ module.exports = {
 
   remove(channelId) {
     contents.delete(channelId)
+  },
+
+  // Expose the values iterator so callers can iterate over stored content data
+  values() {
+    return contents.values()
   }
 }

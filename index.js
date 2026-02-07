@@ -9,6 +9,8 @@ const {
 } = require('discord.js')
 
 const store = require('./store')
+const { TEMPLATES, ROLE_ICONS, ROLE_DISPLAY_NAMES, getRoleIcon } = require('./roleConfig')
+const { GAME_TEMPLATES, GAME_ROLE_DISPLAY, GAME_ROLE_ICONS, GEAR_IMAGES } = require('./gameTemplates')
 
 const GUILD_ID = '1360620690323148800'
 
@@ -17,6 +19,7 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.MessageContent
   ]
 })
@@ -54,6 +57,79 @@ const commands = [
             .setName('voice_channel')
             .setDescription('Voice channel for mass')
             .setRequired(true)
+        )
+        .addStringOption(opt =>
+          opt
+            .setName('template')
+            .setDescription('Pick a template (optional)')
+            .setRequired(false)
+            .addChoices(
+              { name: 'Small Dungeon (1T/1H/3D/1C)', value: 'small-dungeon' },
+              { name: 'Large Dungeon (2T/2H/6D/1C)', value: 'large-dungeon' },
+              { name: 'PvP Small (1T/1H/3D/2S/1C)', value: 'pvp-small' },
+              { name: 'PvP Large (2T/2H/5D/3S/2Catch/1C)', value: 'pvp-large' },
+              { name: 'Raid (3T/3H/10D/4S/1C)', value: 'raid' },
+              { name: '🎯 Cathedral Of Rat', value: 'cathedral-rat' },
+              { name: '🎯 Pure Tracking MLP', value: 'pure-tracking-mlp' },
+              { name: '🎯 Faction Capping PvP', value: 'faction-capping' },
+              { name: '🎯 5 Man Tracking', value: '5man-tracking' }
+            )
+        )
+        .addIntegerOption(opt =>
+          opt
+            .setName('max_players')
+            .setDescription('Max players (excess goes to bench, optional)')
+            .setRequired(false)
+            .setMinValue(1)
+            .setMaxValue(50)
+        )
+        .addIntegerOption(opt =>
+          opt
+            .setName('tank_slots')
+            .setDescription('Number of tank slots (overrides template)')
+            .setRequired(false)
+            .setMinValue(0)
+            .setMaxValue(10)
+        )
+        .addIntegerOption(opt =>
+          opt
+            .setName('healer_slots')
+            .setDescription('Number of healer slots (overrides template)')
+            .setRequired(false)
+            .setMinValue(0)
+            .setMaxValue(10)
+        )
+        .addIntegerOption(opt =>
+          opt
+            .setName('dps_slots')
+            .setDescription('Number of DPS slots (overrides template)')
+            .setRequired(false)
+            .setMinValue(0)
+            .setMaxValue(20)
+        )
+        .addIntegerOption(opt =>
+          opt
+            .setName('support_slots')
+            .setDescription('Number of support slots (overrides template)')
+            .setRequired(false)
+            .setMinValue(0)
+            .setMaxValue(10)
+        )
+        .addIntegerOption(opt =>
+          opt
+            .setName('catcher_slots')
+            .setDescription('Number of catcher slots (overrides template)')
+            .setRequired(false)
+            .setMinValue(0)
+            .setMaxValue(10)
+        )
+        .addIntegerOption(opt =>
+          opt
+            .setName('caller_slots')
+            .setDescription('Number of caller slots (overrides template)')
+            .setRequired(false)
+            .setMinValue(0)
+            .setMaxValue(5)
         )
     )
 
@@ -167,6 +243,8 @@ if (sub === 'end') {
       try {
         const title = interaction.options.getString('title')
         const massTimeStr = interaction.options.getString('mass_time')
+        const template = interaction.options.getString('template')
+        const maxPlayers = interaction.options.getInteger('max_players')
 
         // Parse UTC time
         const [hour, minute] = massTimeStr.split(':').map(Number)
@@ -180,73 +258,133 @@ if (sub === 'end') {
         0
         ))
 
-
         await interaction.deferReply()
+
+        // Build role caps from template or custom values
+        let caps = {
+          tank: 0,
+          healer: 0,
+          dps: 0,
+          support: 0,
+          catcher: 0,
+          caller: 0,
+          bench: Infinity,
+          absence: Infinity
+        }
+
+        let templateData = null
+        let isGameTemplate = false
+
+        // Check if it's a game-specific template
+        if (template && GAME_TEMPLATES[template]) {
+          isGameTemplate = true
+          templateData = GAME_TEMPLATES[template]
+          // Use game-specific roles
+          Object.assign(caps, templateData.roles)
+        } else if (template && TEMPLATES[template]) {
+          // Apply standard template if selected
+          Object.assign(caps, TEMPLATES[template])
+        }
+
+        // Override with custom slot values
+        const tankSlots = interaction.options.getInteger('tank_slots')
+        const healerSlots = interaction.options.getInteger('healer_slots')
+        const dpsSlots = interaction.options.getInteger('dps_slots')
+        const supportSlots = interaction.options.getInteger('support_slots')
+        const catcherSlots = interaction.options.getInteger('catcher_slots')
+        const callerSlots = interaction.options.getInteger('caller_slots')
+
+        if (tankSlots !== null) caps.tank = tankSlots
+        if (healerSlots !== null) caps.healer = healerSlots
+        if (dpsSlots !== null) caps.dps = dpsSlots
+        if (supportSlots !== null) caps.support = supportSlots
+        if (catcherSlots !== null) caps.catcher = catcherSlots
+        if (callerSlots !== null) caps.caller = callerSlots
+
+        // Initialize roles object with all possible roles
+        const allRoles = isGameTemplate 
+          ? Object.keys(templateData.roles)
+          : ['tank', 'healer', 'dps', 'support', 'catcher', 'caller']
+
+        const rolesObj = {
+          bench: [],
+          absence: []
+        }
+        allRoles.forEach(role => {
+          rolesObj[role] = []
+        })
 
         const contentData = {
           hostId: interaction.user.id,
           title,
           massTime,
           locked: false,
-          orderCounter: 1,
-          caps: {
-            tank: 1,
-            healer: 1,
-            dps: 4,
-            caller: 1,
-            bench: Infinity,
-            absence: Infinity
-          },
-          roles: {
-            tank: [],
-            healer: [],
-            dps: [],
-            caller: [{ userId: interaction.user.id, order: 1 }],
-            bench: [],
-            absence: []
-          },
+          orderCounter: 0,
+          maxPlayers,
+          caps,
+          roles: rolesObj,
           voiceChannelId: voiceChannel.id,
           attendance: {
             late: new Set(),
             absent: new Set()
-          }
-
-
-    
+          },
+          templateKey: template,
+          isGameTemplate
         }
 
+        // Store channelId for proper lookup in timeouts
+        const channelId = interaction.channelId
+        const guildId = interaction.guildId
+
         setTimeout(
-          () => markLateAtMass(interaction.channel, contentData),
+          () => markLateAtMass(channelId, guildId),
           contentData.massTime.getTime() - Date.now()
         )
 
         setTimeout(
-          () => markAbsentAfterGrace(interaction.channel, contentData),
-          contentData.massTime.getTime() - Date.now() + (10 * 60 * 1000)
+          () => markAbsentAfterGrace(channelId, guildId),
+          contentData.massTime.getTime() - Date.now() + (2 * 60 * 1000)
         )
 
 
 
         store.create(interaction.channelId, contentData)
 
-            const embed = new EmbedBuilder()
-            .setTitle(`⚔ ${title}`)
-            .setColor(0x8b0000)
-            .setDescription(
-                `**Host:** <@${interaction.user.id}>\n` +
-                `🕒 **Mass Time (UTC):** ${formatDiscordTimestamp(massTime)}\n` +
-                `� **Voice Channel:** <#${voiceChannel.id}>\n` +
-                `�🔒 **Manual Lock:** Use \`/content lock\` to lock signups`
-            )
-
-          .addFields(
-            { name: '🛡 Tank (0/1)', value: '—' },
-            { name: '💉 Healer (0/1)', value: '—' },
-            { name: '⚔ DPS (0/4)', value: '—' },
-            { name: '📣 Caller (1/1)', value: `<@${interaction.user.id}>` },
-            { name: '🪑 Bench', value: '—' },
-            { name: '🚫 Absence', value: '—' }
+        const embed = new EmbedBuilder()
+          .setTitle(`⚔ ${title}`)
+          .setColor(0x8b0000)
+          .setDescription(
+            `**Host:** <@${interaction.user.id}>\n` +
+            `🕒 **Mass Time (UTC):** ${formatDiscordTimestamp(massTime)}\n` +
+            `🔊**Voice Channel:** <#${voiceChannel.id}>\n` +
+            (maxPlayers ? `👥 **Max Players:** ${maxPlayers}\n` : '') +
+            (isGameTemplate && templateData.gearRequirements ? 
+              `📋 **Gear Info:** Will be sent via DM on signup\n` : '') +
+            `🔒**Manual Lock:** Use \`/content lock\` to lock signups`
           )
+
+        // Dynamically add role fields based on caps
+        // Add fields for roles with slots > 0 or unlimited (including bench/absence)
+        for (const [role, cap] of Object.entries(contentData.caps)) {
+          if (cap > 0 || role === 'bench' || role === 'absence') {
+            // Get icon and display name (check game templates first)
+            const icon = isGameTemplate && GAME_ROLE_ICONS[role] 
+              ? GAME_ROLE_ICONS[role] 
+              : (ROLE_ICONS[role] || '❓')
+            
+            const displayName = isGameTemplate && GAME_ROLE_DISPLAY[role]
+              ? GAME_ROLE_DISPLAY[role]
+              : (ROLE_DISPLAY_NAMES[role] || role)
+
+            const count = contentData.roles[role] ? contentData.roles[role].length : 0
+            const capText = cap === Infinity ? '' : ` (${count}/${cap})`
+            
+            embed.addFields({
+              name: `${icon} ${displayName}${capText}`,
+              value: '—'
+            })
+          }
+        }
 
         const msg = await interaction.editReply({
           embeds: [embed],
@@ -285,6 +423,13 @@ if (sub === 'end') {
   melee: 'dps',
   range: 'dps',
 
+  support: 'support',
+  supp: 'support',
+
+  catcher: 'catcher',
+  catch: 'catcher',
+  ganker: 'catcher',
+
   caller: 'caller',
   call: 'caller',
 
@@ -294,7 +439,36 @@ if (sub === 'end') {
 
   out: 'out',
   cancel: 'out',
-  withdraw: 'out'
+  withdraw: 'out',
+
+  // Game-specific role aliases
+  dreadstorm: 'dreadstorm',
+  hallowfall: 'hallowfall',
+  cursed: 'cursed_staff',
+  staff: 'cursed_staff',
+  daggerbolt: 'dagger_bolt',
+  bolt: 'dagger_bolt',
+  boltcaster: 'dagger_bolt',
+  daggerreaper: 'dagger_reaper',
+  reaper: 'dagger_reaper',
+  heavymace: 'heavymace',
+  mace: 'heavymace',
+  truebolt: 'truebolt_oath_root',
+  oath: 'truebolt_oath_root',
+  oathkeeper: 'truebolt_oath_root',
+  root: 'truebolt_oath_root',
+  rootbound: 'truebolt_oath_root',
+  redemption: 'redemption_blight',
+  blight: 'redemption_blight',
+  realmbreaker: 'realmbreaker',
+  realm: 'realmbreaker',
+  carving: 'carving_rotcaller',
+  rotcaller: 'carving_rotcaller',
+  demonfang: 'demonfang_battlebracer',
+  battlebracer: 'demonfang_battlebracer',
+  bracer: 'demonfang_battlebracer',
+  longbow: 'longbow',
+  bow: 'longbow'
 }
 
  client.on('messageCreate', async message => {
@@ -327,6 +501,12 @@ if (sub === 'end') {
 
   const userId = message.author.id
 
+  // Check if role exists in this content's roles
+  if (!data.roles.hasOwnProperty(role) && role !== 'out') {
+    await message.reply(`❌ **${role}** is not available for this content.`)
+    return
+  }
+
   // ❌ Absence is system-only
   if (role === 'absence') {
     await message.reply('❌ Absence is handled automatically for late cancellations.')
@@ -351,6 +531,27 @@ if (sub === 'end') {
     data.roles[r] = data.roles[r].filter(u => u.userId !== userId)
   }
 
+  // Check max players (count all non-bench, non-absence)
+  if (data.maxPlayers && role !== 'bench') {
+    const totalSignups = Object.entries(data.roles)
+      .filter(([r]) => r !== 'bench' && r !== 'absence')
+      .reduce((sum, [, users]) => sum + users.length, 0)
+
+    if (totalSignups >= data.maxPlayers) {
+      // Auto-bench if max reached
+      data.orderCounter++
+      data.roles.bench.push({
+        userId,
+        order: data.orderCounter
+      })
+      await message.react('🪑')
+      await message.reply(`⚠️ Max players reached (${data.maxPlayers}). You've been added to **BENCH**.`)
+      await cleanup(message)
+      await refreshEmbed(message, data)
+      return
+    }
+  }
+
   // Cap check
   if (data.roles[role].length >= data.caps[role]) {
     await message.reply(`❌ **${role.toUpperCase()}** is full.`)
@@ -365,26 +566,34 @@ if (sub === 'end') {
 
   await message.react('✅')
   await sendSignupConfirmation(message, role)
+  
+  // Send DM with gear requirements if it's a game template
+  if (data.isGameTemplate && data.templateKey && GEAR_IMAGES[data.templateKey]) {
+    await sendGearRequirementsDM(message.author, data.templateKey, role)
+  }
+  
   await cleanup(message)
   await refreshEmbed(message, data)
 
 })
 
 client.on('voiceStateUpdate', (oldState, newState) => {
+  // Only consider joins/updates with a channel
   if (!newState.channelId) return
 
-  const data = [...store.values()]
-  .find(d => d.voiceChannelId === newState.channelId)
+  // Ensure we use the member's user ID (safer) when checking attendance
+  const memberId = newState.member?.id ?? newState.id
+
+  const data = [...store.values()].find(d => d.voiceChannelId === newState.channelId)
 
   if (!data) return
 
   if (newState.channelId === data.voiceChannelId) {
-    if (data.attendance.late.has(newState.id)) {
-      data.attendance.late.delete(newState.id)
+    if (data.attendance.late.has(memberId)) {
+      data.attendance.late.delete(memberId)
     }
 
-  if (data.attendance.absent.has(newState.id)) return
-
+    if (data.attendance.absent.has(memberId)) return
   }
 })
 
@@ -395,30 +604,37 @@ async function updateEmbed(message, data) {
   const embed = EmbedBuilder.from(message.embeds[0])
   embed.setFields([])
 
-  const roleNames = {
-    tank: '🛡 Tank',
-    healer: '💉 Healer',
-    dps: '⚔ DPS',
-    caller: '📣 Caller',
-    bench: '🪑 Bench',
-    absence: '🚫 Absence'
-  }
+  // Show roles that have caps > 0
+  for (const [role, cap] of Object.entries(data.caps)) {
+    if (cap > 0 || role === 'bench' || role === 'absence') {
+      const users = data.roles[role]
+        ? data.roles[role]
+          .sort((a, b) => a.order - b.order)
+          .map(u => `${u.order}. <@${u.userId}>`)
+          .join('\n')
+        : '—'
+      
+      const finalUsers = users || '—'
 
-  for (const role of Object.keys(data.roles)) {
-    const users = data.roles[role]
-      .sort((a, b) => a.order - b.order)
-      .map(u => `${u.order}. <@${u.userId}>`)
-      .join('\n') || '—'
+      const count = data.roles[role] ? data.roles[role].length : 0
+      
+      // Get icon and display name (check game templates first)
+      const icon = data.isGameTemplate && GAME_ROLE_ICONS[role] 
+        ? GAME_ROLE_ICONS[role] 
+        : (ROLE_ICONS[role] || '❓')
+      
+      const displayName = data.isGameTemplate && GAME_ROLE_DISPLAY[role]
+        ? GAME_ROLE_DISPLAY[role]
+        : (ROLE_DISPLAY_NAMES[role] || role)
 
-    const cap = data.caps[role]
-    const count = data.roles[role].length
-    const capText = cap === Infinity ? '' : ` (${count}/${cap})`
+      const capText = cap === Infinity ? '' : ` (${count}/${cap})`
 
-    embed.addFields({
-      name: `${roleNames[role]}${capText}`,
-      value: users,
-      inline: false
-    })
+      embed.addFields({
+        name: `${icon} ${displayName}${capText}`,
+        value: finalUsers,
+        inline: false
+      })
+    }
   }
 
   await message.edit({ embeds: [embed] })
@@ -458,20 +674,56 @@ function formatDiscordTimestamp(date) {
   return `<t:${unix}:t> (<t:${unix}:R>)`
 }
 
-async function markLateAtMass(channel, data) {
-  const vc = channel.guild.channels.cache.get(data.voiceChannelId)
+async function sendGearRequirementsDM(user, templateKey, role) {
+  try {
+    const gearInfo = GEAR_IMAGES[templateKey]
+    const template = GAME_TEMPLATES[templateKey]
+    
+    if (!gearInfo) return
+
+    const embed = new EmbedBuilder()
+      .setColor(0x0099ff)
+      .setTitle(`📋 Gear Requirements: ${template.name}`)
+      .setDescription(
+        `**Your Role:** ${GAME_ROLE_DISPLAY[role] || role}\n\n` +
+        gearInfo.description
+      )
+      .setFooter({ text: 'Sinner Bot • Good luck!' })
+      .setTimestamp()
+
+    // If there's an image URL, add it
+    if (gearInfo.imageUrl) {
+      embed.setImage(gearInfo.imageUrl)
+    }
+
+    await user.send({ embeds: [embed] })
+  } catch (err) {
+    console.error('Failed to send DM:', err)
+    // Silently fail if user has DMs disabled
+  }
+}
+
+async function markLateAtMass(channelId, guildId) {
+  const data = store.get(channelId)
+  if (!data) return
+
+  const guild = client.guilds.cache.get(guildId)
+  if (!guild) return
+
+  const vc = guild.channels.cache.get(data.voiceChannelId)
   if (!vc || !vc.isVoiceBased()) return
 
   const present = new Set(vc.members.map(m => m.id))
 
-  // Skip checking absence and bench roles, and skip the host
-  const rolesToCheck = ['tank', 'healer', 'dps', 'caller']
+  // Skip checking absence and bench roles
+  const excludeRoles = ['bench', 'absence']
   
-  for (const role of rolesToCheck) {
-    for (const user of data.roles[role]) {
-      // Skip the host
-      if (user.userId === data.hostId) continue
-      
+  // Check all roles except excluded ones
+  for (const [role, users] of Object.entries(data.roles)) {
+    if (excludeRoles.includes(role)) continue
+    if (!users || !Array.isArray(users)) continue
+    
+    for (const user of users) {
       if (!present.has(user.userId)) {
         data.attendance.late.add(user.userId)
       }
@@ -479,14 +731,20 @@ async function markLateAtMass(channel, data) {
   }
 
   // Post to thread instead of parent channel
-  const thread = channel.guild.channels.cache.get(data.threadId)
+  const thread = guild.channels.cache.get(data.threadId)
   if (thread) {
     await thread.send(`⏰ **Mass started. Late check complete.**`)
   }
 }
 
-async function markAbsentAfterGrace(channel, data) {
-  const vc = channel.guild.channels.cache.get(data.voiceChannelId)
+async function markAbsentAfterGrace(channelId, guildId) {
+  const data = store.get(channelId)
+  if (!data) return
+
+  const guild = client.guilds.cache.get(guildId)
+  if (!guild) return
+
+  const vc = guild.channels.cache.get(data.voiceChannelId)
   if (!vc || !vc.isVoiceBased()) return
 
   const present = new Set(vc.members.map(m => m.id))
@@ -513,15 +771,18 @@ async function markAbsentAfterGrace(channel, data) {
   data.attendance.late.clear()
 
   try {
+    const channel = guild.channels.cache.get(channelId)
+    if (!channel) return
+
     const messages = await channel.messages.fetch({ limit: 10 })
-    const botMessage = messages.find(m => m.author.id === channel.client.user.id)
+    const botMessage = messages.find(m => m.author.id === client.user.id)
 
     if (botMessage) {
       await updateEmbed(botMessage, data)
     }
 
     // Post to thread instead of replying to embed
-    const thread = channel.guild.channels.cache.get(data.threadId)
+    const thread = guild.channels.cache.get(data.threadId)
     if (thread) {
       await thread.send('🚫 **Grace period ended — absences finalized.**')
     }

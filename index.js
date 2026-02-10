@@ -75,7 +75,6 @@ const commands = [
               { name: 'PvP Small (1T/1H/3D/2S/1C)', value: 'pvp-small' },
               { name: 'PvP Large (2T/2H/5D/3S/2Catch/1C)', value: 'pvp-large' },
               { name: 'Raid (3T/3H/10D/4S/1C)', value: 'raid' },
-              { name: '🎯 Cathedral Of Rat', value: 'cathedral-rat' },
               { name: '🎯 Pure Tracking MLP', value: 'pure-tracking-mlp' },
               { name: '🎯 Faction Capping PvP', value: 'faction-capping' },
               { name: '🎯 5 Man Tracking', value: '5man-tracking' }
@@ -164,7 +163,11 @@ const commands = [
       sub
         .setName('end')
         .setDescription('End and delete the content signup')
-    )
+    ),
+
+  new SlashCommandBuilder()
+    .setName('utc')
+    .setDescription('Shows the current UTC time')
 ].map(cmd => cmd.toJSON())
 
 
@@ -195,6 +198,16 @@ client.on('interactionCreate', async interaction => {
   // /ping
   if (interaction.commandName === 'ping') {
     await interaction.reply('🏓 Pong! Bot is working.')
+    return
+  }
+
+  // /utc
+  if (interaction.commandName === 'utc') {
+    const now = new Date()
+    const utcString = now.toUTCString()
+    const utcTime = now.toISOString().slice(11, 19) // HH:MM:SS
+    const utcDate = now.toISOString().slice(0, 10) // YYYY-MM-DD
+    await interaction.reply(`🕐 **Current UTC Time**\n📅 Date: \`${utcDate}\`\n⏰ Time: \`${utcTime}\``)
     return
   }
 
@@ -495,7 +508,7 @@ if (sub === 'attendance') {
 
           setTimeout(
             () => markAbsentAfterGrace(interaction.channelId),
-            timeUntilMass + (2 * 60 * 1000) // 2 minutes grace period
+            timeUntilMass + (10 * 60 * 1000) // 10 minutes grace period
           )
         }
 

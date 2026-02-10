@@ -12,7 +12,6 @@ const TEMPLATES = {
   'raid': { tank: 3, healer: 3, dps: 10, support: 4, caller: 1 },
   
   // Game-specific templates (will be merged with GAME_TEMPLATES)
-  'cathedral-rat': null,
   'pure-tracking-mlp': null,
   'faction-capping': null,
   '5man-tracking': null

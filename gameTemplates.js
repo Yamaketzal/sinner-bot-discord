@@ -4,26 +4,6 @@
  */
 
 const GAME_TEMPLATES = {
-  // Cathedral of Rat (Dungeon)
-  'cathedral-rat': {
-    name: 'Cathedral Of Rat',
-    type: 'dungeon',
-    roles: {
-      dps: 1,
-      caller: 1
-    },
-    gearRequirements: {
-      all: [
-        'Boss Swaps, Potions, Rat Set required',
-        'Holy Staff for Revive (can ask Caller to borrow)',
-        'Missing swap or incorrect builds means no regear if you die',
-        'If using a different account, include it in your sign up',
-        'Farmers with experienced role and scout will get priority'
-      ],
-      prepTime: 30 // minutes before mass
-    }
-  },
-
   // Pure Tracking in MLP
   'pure-tracking-mlp': {
     name: 'Pure Tracking in MLP',
@@ -76,7 +56,7 @@ const GAME_TEMPLATES = {
     roles: {
       healer: 1,
       dps: 3,
-      catcher: 1
+      tank: 1
     },
     gearRequirements: {
       all: [
@@ -122,20 +102,7 @@ const GAME_ROLE_ICONS = {
 
 // Gear requirement images/descriptions per content type
 const GEAR_IMAGES = {
-  'cathedral-rat': {
-    imageUrl: null, // Set this to your hosted image URL
-    description: '**Required Items:**\n' +
-      '• Boss Swap Items\n' +
-      '• Potions (Healing, Energy)\n' +
-      '• Complete Rat Set\n' +
-      '• Holy Staff (for revive)\n' +
-      '\n**Rules:**\n' +
-      '• No regear if you die with wrong build\n' +
-      '• Mention alt accounts in signup\n' +
-      '• Experienced farmers get priority\n' +
-      '• Prepare 30min before mass'
-  },
-  'pure-tracking-mlp': {
+    'pure-tracking-mlp': {
     imageUrl: null,
     description: '**Provided by Guild:**\n' +
       '• All gear\n' +

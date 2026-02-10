@@ -10,9 +10,14 @@ const {
 
 const store = require('./store')
 const { TEMPLATES, ROLE_ICONS, ROLE_DISPLAY_NAMES, getRoleIcon } = require('./roleConfig')
-const { GAME_TEMPLATES, GAME_ROLE_DISPLAY, GAME_ROLE_ICONS, GEAR_IMAGES } = require('./gameTemplates')
+const { GAME_TEMPLATES, GAME_ROLE_DISPLAY, GAME_ROLE_ICONS } = require('./gameTemplates')
 
 const GUILD_ID = '1360620690323148800'
+
+const TUTORIALS_CHANNEL_ID = '1423618942370582529' // #tutorials channel
+const RULES_CHANNEL_ID = '1408033222930993162' // #server-rules channel
+const ATTENDANCE_CHANNEL_ID = '1425765255157518408' // #attendance-tracker (officers only)
+const BUILD_GUIDE_CHANNEL_ID = '1393420731110653962' // #build-guide channel
 
 
 const client = new Client({
@@ -131,6 +136,12 @@ const commands = [
             .setMinValue(0)
             .setMaxValue(5)
         )
+        .addStringOption(opt =>
+          opt
+            .setName('description')
+            .setDescription('Custom description for the content (gear requirements, rules, etc.)')
+            .setRequired(false)
+        )
     )
 
     // /content lock
@@ -138,6 +149,13 @@ const commands = [
       sub
         .setName('lock')
         .setDescription('Lock the content signup')
+    )
+
+    // /content attendance
+    .addSubcommand(sub =>
+      sub
+        .setName('attendance')
+        .setDescription('Check attendance and log to officers channel, then end the content')
     )
 
     // /content end
@@ -186,10 +204,15 @@ client.on('interactionCreate', async interaction => {
 
 
     if (sub === 'lock') {
-  const data = store.get(interaction.channelId)
+  // Check if command is used in a thread, get parent channel ID
+  const channelId = interaction.channel.isThread() 
+    ? interaction.channel.parentId 
+    : interaction.channelId
+  
+  const data = store.get(channelId)
 
   if (!data) {
-    await interaction.reply({ content: '❌ No active content.', ephemeral: true })
+    await interaction.reply({ content: '❌ No active content. Use this command in the content thread.', ephemeral: true })
     return
   }
 
@@ -200,14 +223,19 @@ client.on('interactionCreate', async interaction => {
 
   data.locked = true
   await interaction.reply('🔒 Content is now locked.')
-  return // 🔴 THIS WAS MISSING
+  return
 }
 
 if (sub === 'end') {
-  const data = store.get(interaction.channelId)
+  // Check if command is used in a thread, get parent channel ID
+  const channelId = interaction.channel.isThread() 
+    ? interaction.channel.parentId 
+    : interaction.channelId
+    
+  const data = store.get(channelId)
 
   if (!data) {
-    await interaction.reply({ content: '❌ No active content.', ephemeral: true })
+    await interaction.reply({ content: '❌ No active content. Use this command in the content thread.', ephemeral: true })
     return
   }
 
@@ -218,8 +246,13 @@ if (sub === 'end') {
 
   await interaction.deferReply({ ephemeral: true })
 
-  // Find the bot message in this channel
-  const messages = await interaction.channel.messages.fetch({ limit: 20 })
+  // Get the parent channel to find the bot message
+  const parentChannel = interaction.channel.isThread()
+    ? interaction.channel.parent
+    : interaction.channel
+
+  // Find the bot message in the parent channel
+  const messages = await parentChannel.messages.fetch({ limit: 20 })
   const botMessage = messages.find(m => m.author.id === interaction.client.user.id)
 
   // Delete thread if exists
@@ -233,9 +266,112 @@ if (sub === 'end') {
   }
 
   // Remove from store
-  store.remove(interaction.channelId)
+  store.remove(channelId)
 
   await interaction.editReply('✅ Content ended and cleaned up.')
+  return
+}
+
+if (sub === 'attendance') {
+  // Check if command is used in a thread, get parent channel ID
+  const channelId = interaction.channel.isThread() 
+    ? interaction.channel.parentId 
+    : interaction.channelId
+    
+  const data = store.get(channelId)
+
+  if (!data) {
+    await interaction.reply({ content: '❌ No active content. Use this command in the content thread.', ephemeral: true })
+    return
+  }
+
+  if (interaction.user.id !== data.hostId) {
+    await interaction.reply({ content: '❌ Only the host can check attendance.', ephemeral: true })
+    return
+  }
+
+  await interaction.deferReply()
+
+  // Get the voice channel and check who's present
+  const vc = interaction.guild.channels.cache.get(data.voiceChannelId)
+  if (!vc || !vc.isVoiceBased()) {
+    await interaction.editReply('❌ Voice channel not found.')
+    return
+  }
+
+  const presentIds = new Set(vc.members.map(m => m.id))
+  
+  // Collect attendance data
+  const present = []
+  const absent = []
+  
+  // Check all roles except bench and absence
+  const excludeRoles = ['bench', 'absence']
+  
+  for (const [role, users] of Object.entries(data.roles)) {
+    if (excludeRoles.includes(role)) continue
+    if (!users || !Array.isArray(users)) continue
+    
+    for (const user of users) {
+      if (presentIds.has(user.userId)) {
+        present.push({ userId: user.userId, role })
+      } else {
+        absent.push({ userId: user.userId, role })
+      }
+    }
+  }
+
+  // Build attendance log embed for officers channel
+  const attendanceEmbed = new EmbedBuilder()
+    .setTitle(`📋 Attendance Log: ${data.title}`)
+    .setColor(0x3498db)
+    .setDescription(
+      `**Host:** <@${data.hostId}>\n` +
+      `**Mass Time:** ${formatDiscordTimestamp(data.massTime)}\n` +
+      `**Voice Channel:** <#${data.voiceChannelId}>\n` +
+      `**Date:** ${new Date().toISOString().split('T')[0]}`
+    )
+    .addFields(
+      {
+        name: `✅ Present (${present.length})`,
+        value: present.length > 0 
+          ? present.map(p => `<@${p.userId}> - ${p.role}`).join('\n')
+          : '—',
+        inline: false
+      },
+      {
+        name: `❌ Absent (${absent.length})`,
+        value: absent.length > 0
+          ? absent.map(a => `<@${a.userId}> - ${a.role}`).join('\n')
+          : '—',
+        inline: false
+      },
+      {
+        name: `🚫 Late Cancellations (${data.roles.absence?.length || 0})`,
+        value: data.roles.absence?.length > 0
+          ? data.roles.absence.map(a => `<@${a.userId}>`).join('\n')
+          : '—',
+        inline: false
+      }
+    )
+    .setFooter({ text: 'Sinner Bot Attendance System' })
+    .setTimestamp()
+
+  // Send to officers attendance channel
+  const attendanceChannel = interaction.guild.channels.cache.get(ATTENDANCE_CHANNEL_ID)
+  if (attendanceChannel) {
+    await attendanceChannel.send({ embeds: [attendanceEmbed] })
+  }
+
+  // Reply in the content channel
+  await interaction.editReply({
+    content: `✅ **Attendance checked!**\n\n` +
+      `📊 **Present:** ${present.length}\n` +
+      `❌ **Absent:** ${absent.length}\n` +
+      `🚫 **Late Cancellations:** ${data.roles.absence?.length || 0}\n\n` +
+      `Attendance log has been sent to <#${ATTENDANCE_CHANNEL_ID}>.\n` +
+      `Use \`/content end\` to clean up when done.`
+  })
   return
 }
 
@@ -245,6 +381,7 @@ if (sub === 'end') {
         const massTimeStr = interaction.options.getString('mass_time')
         const template = interaction.options.getString('template')
         const maxPlayers = interaction.options.getInteger('max_players')
+        const customDescription = interaction.options.getString('description')
 
         // Parse UTC time
         const [hour, minute] = massTimeStr.split(':').map(Number)
@@ -324,44 +461,52 @@ if (sub === 'end') {
           caps,
           roles: rolesObj,
           voiceChannelId: voiceChannel.id,
+          channelId: interaction.channelId,
+          guildId: interaction.guildId,
           attendance: {
             late: new Set(),
             absent: new Set()
           },
           templateKey: template,
-          isGameTemplate
+          isGameTemplate,
+          customDescription
         }
 
-        // Store channelId for proper lookup in timeouts
-        const channelId = interaction.channelId
-        const guildId = interaction.guildId
-
-        setTimeout(
-          () => markLateAtMass(channelId, guildId),
-          contentData.massTime.getTime() - Date.now()
-        )
-
-        setTimeout(
-          () => markAbsentAfterGrace(channelId, guildId),
-          contentData.massTime.getTime() - Date.now() + (2 * 60 * 1000)
-        )
-
-
-
         store.create(interaction.channelId, contentData)
+
+        // Schedule automatic mass time and grace period checks
+        const timeUntilMass = contentData.massTime.getTime() - Date.now()
+        if (timeUntilMass > 0) {
+          setTimeout(
+            () => markLateAtMass(interaction.channelId),
+            timeUntilMass
+          )
+
+          setTimeout(
+            () => markAbsentAfterGrace(interaction.channelId),
+            timeUntilMass + (2 * 60 * 1000) // 2 minutes grace period
+          )
+        }
+
+        // Build description - use custom description if provided
+        let embedDescription = 
+          `**Host:** <@${interaction.user.id}>\n` +
+          `🕒 **Mass Time (UTC):** ${formatDiscordTimestamp(massTime)}\n` +
+          `🔊 **Voice Channel:** <#${voiceChannel.id}>`
+        
+        if (maxPlayers) {
+          embedDescription += `\n👥 **Max Players:** ${maxPlayers}`
+        }
+
+        // Add custom description if provided by host
+        if (customDescription) {
+          embedDescription += `\n\n📋 **Content Info:**\n${customDescription}`
+        }
 
         const embed = new EmbedBuilder()
           .setTitle(`⚔ ${title}`)
           .setColor(0x8b0000)
-          .setDescription(
-            `**Host:** <@${interaction.user.id}>\n` +
-            `🕒 **Mass Time (UTC):** ${formatDiscordTimestamp(massTime)}\n` +
-            `🔊**Voice Channel:** <#${voiceChannel.id}>\n` +
-            (maxPlayers ? `👥 **Max Players:** ${maxPlayers}\n` : '') +
-            (isGameTemplate && templateData.gearRequirements ? 
-              `📋 **Gear Info:** Will be sent via DM on signup\n` : '') +
-            `🔒**Manual Lock:** Use \`/content lock\` to lock signups`
-          )
+          .setDescription(embedDescription)
 
         // Dynamically add role fields based on caps
         // Add fields for roles with slots > 0 or unlimited (including bench/absence)
@@ -515,19 +660,38 @@ if (sub === 'end') {
 
   // ⏰ Handle x out / cancel
   if (role === 'out') {
+    // Check what role user had before leaving
+    let previousRole = null
+    for (const r in data.roles) {
+      const found = data.roles[r].find(u => u.userId === userId)
+      if (found && r !== 'bench' && r !== 'absence') {
+        previousRole = r
+        break
+      }
+    }
+
     // Remove user from all roles
     for (const r in data.roles) {
       data.roles[r] = data.roles[r].filter(u => u.userId !== userId)
     }
 
     await message.react('❌')
-    await cleanup(message)
     await refreshEmbed(message, data)
+
+    // Try to promote someone from bench if a role slot opened
+    if (previousRole) {
+      await promoteFromBench(message, data, previousRole)
+    }
     return
   }
 
-  // Remove user from all roles first
+  // Remove user from all roles first (but remember if they were in a role)
+  let previousRole = null
   for (const r in data.roles) {
+    const found = data.roles[r].find(u => u.userId === userId)
+    if (found && r !== 'bench' && r !== 'absence') {
+      previousRole = r
+    }
     data.roles[r] = data.roles[r].filter(u => u.userId !== userId)
   }
 
@@ -538,23 +702,33 @@ if (sub === 'end') {
       .reduce((sum, [, users]) => sum + users.length, 0)
 
     if (totalSignups >= data.maxPlayers) {
-      // Auto-bench if max reached
+      // Auto-bench if max reached - save desired role
       data.orderCounter++
       data.roles.bench.push({
         userId,
-        order: data.orderCounter
+        order: data.orderCounter,
+        desiredRole: role  // Track what role they wanted
       })
       await message.react('🪑')
-      await message.reply(`⚠️ Max players reached (${data.maxPlayers}). You've been added to **BENCH**.`)
-      await cleanup(message)
+      await message.reply(`⚠️ Max players reached (${data.maxPlayers}). You've been added to **BENCH** for **${role.toUpperCase()}**.`)
       await refreshEmbed(message, data)
       return
     }
   }
 
-  // Cap check
+  // Cap check - if full, add to bench with desired role
   if (data.roles[role].length >= data.caps[role]) {
-    await message.reply(`❌ **${role.toUpperCase()}** is full.`)
+    data.orderCounter++
+    data.roles.bench.push({
+      userId,
+      order: data.orderCounter,
+      desiredRole: role  // Track what role they wanted
+    })
+    await message.react('🪑')
+    await message.reply(`⚠️ **${role.toUpperCase()}** is full. You've been added to **BENCH** waiting for ${role.toUpperCase()}.`)
+    await sendSignupConfirmation(message, `bench (waiting for ${role})`)
+    await sendGearRequirementsDM(message.author, data, role)
+    await refreshEmbed(message, data)
     return
   }
 
@@ -567,13 +741,15 @@ if (sub === 'end') {
   await message.react('✅')
   await sendSignupConfirmation(message, role)
   
-  // Send DM with gear requirements if it's a game template
-  if (data.isGameTemplate && data.templateKey && GEAR_IMAGES[data.templateKey]) {
-    await sendGearRequirementsDM(message.author, data.templateKey, role)
-  }
+  // Send DM with signup details
+  await sendGearRequirementsDM(message.author, data, role)
   
-  await cleanup(message)
   await refreshEmbed(message, data)
+
+  // If user switched from another role, try to promote from bench
+  if (previousRole && previousRole !== role) {
+    await promoteFromBench(message, data, previousRole)
+  }
 
 })
 
@@ -607,12 +783,22 @@ async function updateEmbed(message, data) {
   // Show roles that have caps > 0
   for (const [role, cap] of Object.entries(data.caps)) {
     if (cap > 0 || role === 'bench' || role === 'absence') {
-      const users = data.roles[role]
-        ? data.roles[role]
+      let users
+      
+      // Special formatting for bench to show desired role
+      if (role === 'bench' && data.roles[role]) {
+        users = data.roles[role]
           .sort((a, b) => a.order - b.order)
-          .map(u => `${u.order}. <@${u.userId}>`)
-          .join('\n')
-        : '—'
+          .map(u => `${u.order}. <@${u.userId}>${u.desiredRole ? ` *(${u.desiredRole})*` : ''}`)
+          .join('\n') || '—'
+      } else {
+        users = data.roles[role]
+          ? data.roles[role]
+            .sort((a, b) => a.order - b.order)
+            .map(u => `${u.order}. <@${u.userId}>`)
+            .join('\n')
+          : '—'
+      }
       
       const finalUsers = users || '—'
 
@@ -638,12 +824,6 @@ async function updateEmbed(message, data) {
   }
 
   await message.edit({ embeds: [embed] })
-}
-
-async function cleanup(message) {
-  setTimeout(() => {
-    message.delete().catch(() => {})
-  }, 1500)
 }
 
 async function refreshEmbed(message, data) {
@@ -674,27 +854,27 @@ function formatDiscordTimestamp(date) {
   return `<t:${unix}:t> (<t:${unix}:R>)`
 }
 
-async function sendGearRequirementsDM(user, templateKey, role) {
+async function sendGearRequirementsDM(user, data, role) {
   try {
-    const gearInfo = GEAR_IMAGES[templateKey]
-    const template = GAME_TEMPLATES[templateKey]
-    
-    if (!gearInfo) return
+    const roleDisplay = GAME_ROLE_DISPLAY[role] || ROLE_DISPLAY_NAMES[role] || role.toUpperCase()
 
     const embed = new EmbedBuilder()
-      .setColor(0x0099ff)
-      .setTitle(`📋 Gear Requirements: ${template.name}`)
+      .setColor(0x8b0000)
+      .setTitle(`⚔ ${data.title} - Signup Confirmed`)
       .setDescription(
-        `**Your Role:** ${GAME_ROLE_DISPLAY[role] || role}\n\n` +
-        gearInfo.description
+        `**ROLE ASSIGNED:** ${roleDisplay}\n` +
+        `**Voice Channel:** <#${data.voiceChannelId}>\n` +
+        `**ROLE GUIDE:** <#${TUTORIALS_CHANNEL_ID}>\n` +
+        `**RULES:** <#${RULES_CHANNEL_ID}>\n` +
+        `**BUILD GUIDE:** <#${BUILD_GUIDE_CHANNEL_ID}>\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `⚠️ **IMPORTANT REMINDERS:**\n\n` +
+        `• **ALL PARTY MEMBERS ARE REQUIRED TO BRING EVERYTHING IN BUILD** - can ask Caller to borrow on that timer.\n\n` +
+        `• **Missing swap or incorrect builds means no regear if you die.**\n\n` +
+        `📍 **Make sure to prepare before the timer - 30min.**`
       )
-      .setFooter({ text: 'Sinner Bot • Good luck!' })
+      .setFooter({ text: 'Sinner Bot ⚡ Good luck!' })
       .setTimestamp()
-
-    // If there's an image URL, add it
-    if (gearInfo.imageUrl) {
-      embed.setImage(gearInfo.imageUrl)
-    }
 
     await user.send({ embeds: [embed] })
   } catch (err) {
@@ -703,11 +883,46 @@ async function sendGearRequirementsDM(user, templateKey, role) {
   }
 }
 
-async function markLateAtMass(channelId, guildId) {
+// Auto-promote first matching user from bench when a slot opens
+async function promoteFromBench(message, data, openedRole) {
+  // Find the first bench user who wanted this role (by order)
+  const benchUsers = data.roles.bench
+    .filter(u => u.desiredRole === openedRole)
+    .sort((a, b) => a.order - b.order)
+
+  if (benchUsers.length === 0) return
+
+  const userToPromote = benchUsers[0]
+  
+  // Check if the role has space
+  if (data.roles[openedRole].length >= data.caps[openedRole]) return
+
+  // Remove from bench
+  data.roles.bench = data.roles.bench.filter(u => u.userId !== userToPromote.userId)
+
+  // Add to the role
+  data.orderCounter++
+  data.roles[openedRole].push({
+    userId: userToPromote.userId,
+    order: data.orderCounter
+  })
+
+  // Notify in thread
+  const thread = message.channel.isThread() ? message.channel : null
+  if (thread) {
+    await thread.send(`🎉 <@${userToPromote.userId}> has been **promoted from BENCH** to **${openedRole.toUpperCase()}**!`)
+  }
+
+  // Update the embed
+  await refreshEmbed(message, data)
+}
+
+// Check attendance at mass time and mark late users
+async function markLateAtMass(channelId) {
   const data = store.get(channelId)
   if (!data) return
 
-  const guild = client.guilds.cache.get(guildId)
+  const guild = client.guilds.cache.get(data.guildId)
   if (!guild) return
 
   const vc = guild.channels.cache.get(data.voiceChannelId)
@@ -730,33 +945,45 @@ async function markLateAtMass(channelId, guildId) {
     }
   }
 
-  // Post to thread instead of parent channel
+  // Post to thread
   const thread = guild.channels.cache.get(data.threadId)
   if (thread) {
-    await thread.send(`⏰ **Mass started. Late check complete.**`)
+    const lateCount = data.attendance.late.size
+    await thread.send(`⏰ **Mass started. Late check complete.**\n${lateCount > 0 ? `⚠️ ${lateCount} user(s) not in VC.` : '✅ Everyone is present!'}`)
   }
 }
 
-async function markAbsentAfterGrace(channelId, guildId) {
+// Mark absent users after grace period and auto-promote from bench
+async function markAbsentAfterGrace(channelId) {
   const data = store.get(channelId)
   if (!data) return
 
-  const guild = client.guilds.cache.get(guildId)
+  const guild = client.guilds.cache.get(data.guildId)
   if (!guild) return
 
   const vc = guild.channels.cache.get(data.voiceChannelId)
   if (!vc || !vc.isVoiceBased()) return
 
   const present = new Set(vc.members.map(m => m.id))
+  const thread = guild.channels.cache.get(data.threadId)
+  const promotedUsers = []
 
-  data.attendance.late.forEach(userId => {
+  // Process late users
+  for (const userId of data.attendance.late) {
     if (!present.has(userId)) {
       // Mark absent (FINAL)
       data.attendance.absent.add(userId)
 
-      // Remove from their current role
+      // Find what role they had and remove them
+      let removedRole = null
       for (const role of Object.keys(data.roles)) {
-        data.roles[role] = data.roles[role].filter(u => u.userId !== userId)
+        if (role === 'bench' || role === 'absence') continue
+        const found = data.roles[role].find(u => u.userId === userId)
+        if (found) {
+          removedRole = role
+          data.roles[role] = data.roles[role].filter(u => u.userId !== userId)
+          break
+        }
       }
 
       // Add to absence
@@ -764,30 +991,58 @@ async function markAbsentAfterGrace(channelId, guildId) {
         userId,
         order: ++data.orderCounter
       })
-    }
-  })
 
-  // Absence is FINAL — no recovery
+      // Try to promote from bench for the freed role
+      if (removedRole) {
+        const benchUser = data.roles.bench
+          .filter(u => u.desiredRole === removedRole)
+          .sort((a, b) => a.order - b.order)[0]
+
+        if (benchUser && data.roles[removedRole].length < data.caps[removedRole]) {
+          // Remove from bench
+          data.roles.bench = data.roles.bench.filter(u => u.userId !== benchUser.userId)
+          
+          // Add to role
+          data.orderCounter++
+          data.roles[removedRole].push({
+            userId: benchUser.userId,
+            order: data.orderCounter
+          })
+          
+          promotedUsers.push({ userId: benchUser.userId, role: removedRole })
+        }
+      }
+    }
+  }
+
+  // Clear late tracking
   data.attendance.late.clear()
 
+  // Update embed
   try {
     const channel = guild.channels.cache.get(channelId)
-    if (!channel) return
-
-    const messages = await channel.messages.fetch({ limit: 10 })
-    const botMessage = messages.find(m => m.author.id === client.user.id)
-
-    if (botMessage) {
-      await updateEmbed(botMessage, data)
+    if (channel) {
+      const messages = await channel.messages.fetch({ limit: 10 })
+      const botMessage = messages.find(m => m.author.id === client.user.id)
+      if (botMessage) {
+        await updateEmbed(botMessage, data)
+      }
     }
 
-    // Post to thread instead of replying to embed
-    const thread = guild.channels.cache.get(data.threadId)
+    // Notify in thread
     if (thread) {
-      await thread.send('🚫 **Grace period ended — absences finalized.**')
+      let msg = '🚫 **Grace period ended — absences finalized.**'
+      
+      if (promotedUsers.length > 0) {
+        msg += '\n\n🎉 **Auto-promoted from bench:**'
+        for (const p of promotedUsers) {
+          msg += `\n• <@${p.userId}> → **${p.role.toUpperCase()}**`
+        }
+      }
+      
+      await thread.send(msg)
     }
   } catch (err) {
     console.error('Final absence error:', err)
   }
 }
-

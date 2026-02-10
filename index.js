@@ -18,6 +18,7 @@ const TUTORIALS_CHANNEL_ID = '1423618942370582529' // #tutorials channel
 const RULES_CHANNEL_ID = '1408033222930993162' // #server-rules channel
 const ATTENDANCE_CHANNEL_ID = '1425765255157518408' // #attendance-tracker (officers only)
 const BUILD_GUIDE_CHANNEL_ID = '1393420731110653962' // #build-guide channel
+const CONTENT_LEAD_ROLE_ID = '1384033559345631293' // Content Lead role - required to use /content commands
 
 
 const client = new Client({
@@ -199,6 +200,16 @@ client.on('interactionCreate', async interaction => {
 
   // /content start
   if (interaction.commandName === 'content') {
+    // Check if user has Content Lead role
+    const member = interaction.member
+    if (!member.roles.cache.has(CONTENT_LEAD_ROLE_ID)) {
+      await interaction.reply({ 
+        content: '❌ You need the **Content Lead** role to use this command.', 
+        ephemeral: true 
+      })
+      return
+    }
+
     const sub = interaction.options.getSubcommand()
     const voiceChannel = interaction.options.getChannel('voice_channel')
 

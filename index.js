@@ -68,25 +68,9 @@ const commands = [
         )
         .addStringOption(opt =>
           opt
-            .setName('template')
-            .setDescription('Pick a template (optional)')
-            .setRequired(false)
-            .addChoices(
-              { name: 'Small Dungeon (1T/1H/3D/1C)', value: 'small-dungeon' },
-              { name: 'Large Dungeon (2T/2H/6D/1C)', value: 'large-dungeon' },
-              { name: 'PvP Small (1T/1H/3D/2S/1C)', value: 'pvp-small' },
-              { name: 'PvP Large (2T/2H/5D/3S/2Catch/1C)', value: 'pvp-large' },
-              { name: 'Raid (3T/3H/10D/4S/1C)', value: 'raid' },
-              { name: '🎯 Pure Tracking MLP', value: 'pure-tracking-mlp' },
-              { name: '🎯 Faction Capping PvP', value: 'faction-capping' },
-              { name: '🎯 5 Man Tracking', value: '5man-tracking' }
-            )
-        )
-        .addStringOption(opt =>
-          opt
             .setName('weapon_template')
-            .setDescription('Pick a weapon template (optional, overrides template)')
-            .setRequired(false)
+            .setDescription('Pick a weapon template (required)')
+            .setRequired(true)
             .setAutocomplete(true)
         )
         .addIntegerOption(opt =>
@@ -96,54 +80,6 @@ const commands = [
             .setRequired(false)
             .setMinValue(1)
             .setMaxValue(50)
-        )
-        .addIntegerOption(opt =>
-          opt
-            .setName('tank_slots')
-            .setDescription('Number of tank slots (overrides template)')
-            .setRequired(false)
-            .setMinValue(0)
-            .setMaxValue(10)
-        )
-        .addIntegerOption(opt =>
-          opt
-            .setName('healer_slots')
-            .setDescription('Number of healer slots (overrides template)')
-            .setRequired(false)
-            .setMinValue(0)
-            .setMaxValue(10)
-        )
-        .addIntegerOption(opt =>
-          opt
-            .setName('dps_slots')
-            .setDescription('Number of DPS slots (overrides template)')
-            .setRequired(false)
-            .setMinValue(0)
-            .setMaxValue(20)
-        )
-        .addIntegerOption(opt =>
-          opt
-            .setName('support_slots')
-            .setDescription('Number of support slots (overrides template)')
-            .setRequired(false)
-            .setMinValue(0)
-            .setMaxValue(10)
-        )
-        .addIntegerOption(opt =>
-          opt
-            .setName('catcher_slots')
-            .setDescription('Number of catcher slots (overrides template)')
-            .setRequired(false)
-            .setMinValue(0)
-            .setMaxValue(10)
-        )
-        .addIntegerOption(opt =>
-          opt
-            .setName('caller_slots')
-            .setDescription('Number of caller slots (overrides template)')
-            .setRequired(false)
-            .setMinValue(0)
-            .setMaxValue(5)
         )
         .addStringOption(opt =>
           opt
@@ -701,9 +637,22 @@ if (sub === 'attendance') {
   const present = []
   const absent = []
   
-  // Check all roles except bench and absence
-  const excludeRoles = ['bench', 'absence']
+  // Check weapon roles
+  if (data.weaponRoles) {
+    for (const [weaponKey, weaponData] of Object.entries(data.weaponRoles)) {
+      const weapon = weaponData.weapon
+      for (const user of weaponData.signups) {
+        if (presentIds.has(user.userId)) {
+          present.push({ userId: user.userId, role: weapon.name })
+        } else {
+          absent.push({ userId: user.userId, role: weapon.name })
+        }
+      }
+    }
+  }
   
+  // Check standard roles (exclude bench and absence)
+  const excludeRoles = ['bench', 'absence']
   for (const [role, users] of Object.entries(data.roles)) {
     if (excludeRoles.includes(role)) continue
     if (!users || !Array.isArray(users)) continue
@@ -775,7 +724,6 @@ if (sub === 'attendance') {
       try {
         const title = interaction.options.getString('title')
         const massTimeStr = interaction.options.getString('mass_time')
-        const template = interaction.options.getString('template')
         const weaponTemplateName = interaction.options.getString('weapon_template')
         const maxPlayers = interaction.options.getInteger('max_players')
         const customDescription = interaction.options.getString('description')
@@ -794,60 +742,6 @@ if (sub === 'attendance') {
 
         await interaction.deferReply()
 
-        // Build role caps from template or custom values
-        let caps = {
-          tank: 0,
-          healer: 0,
-          dps: 0,
-          support: 0,
-          catcher: 0,
-          caller: 0,
-          bench: Infinity,
-          absence: Infinity
-        }
-
-        let templateData = null
-        let isGameTemplate = false
-
-        // Check if it's a game-specific template
-        if (template && GAME_TEMPLATES[template]) {
-          isGameTemplate = true
-          templateData = GAME_TEMPLATES[template]
-          // Use game-specific roles
-          Object.assign(caps, templateData.roles)
-        } else if (template && TEMPLATES[template]) {
-          // Apply standard template if selected
-          Object.assign(caps, TEMPLATES[template])
-        }
-
-        // Override with custom slot values
-        const tankSlots = interaction.options.getInteger('tank_slots')
-        const healerSlots = interaction.options.getInteger('healer_slots')
-        const dpsSlots = interaction.options.getInteger('dps_slots')
-        const supportSlots = interaction.options.getInteger('support_slots')
-        const catcherSlots = interaction.options.getInteger('catcher_slots')
-        const callerSlots = interaction.options.getInteger('caller_slots')
-
-        if (tankSlots !== null) caps.tank = tankSlots
-        if (healerSlots !== null) caps.healer = healerSlots
-        if (dpsSlots !== null) caps.dps = dpsSlots
-        if (supportSlots !== null) caps.support = supportSlots
-        if (catcherSlots !== null) caps.catcher = catcherSlots
-        if (callerSlots !== null) caps.caller = callerSlots
-
-        // Initialize roles object with all possible roles
-        const allRoles = isGameTemplate 
-          ? Object.keys(templateData.roles)
-          : ['tank', 'healer', 'dps', 'support', 'catcher', 'caller']
-
-        const rolesObj = {
-          bench: [],
-          absence: []
-        }
-        allRoles.forEach(role => {
-          rolesObj[role] = []
-        })
-
         const contentData = {
           hostId: interaction.user.id,
           title,
@@ -855,8 +749,14 @@ if (sub === 'attendance') {
           locked: false,
           orderCounter: 0,
           maxPlayers,
-          caps,
-          roles: rolesObj,
+          caps: {
+            bench: Infinity,
+            absence: Infinity
+          },
+          roles: {
+            bench: [],
+            absence: []
+          },
           voiceChannelId: voiceChannel.id,
           channelId: interaction.channelId,
           guildId: interaction.guildId,
@@ -864,8 +764,6 @@ if (sub === 'attendance') {
             late: new Set(),
             absent: new Set()
           },
-          templateKey: template,
-          isGameTemplate,
           customDescription,
           weaponRoles: {} // Initialize weapon roles
         }
@@ -873,7 +771,14 @@ if (sub === 'attendance') {
         // Load weapon template if specified
         if (weaponTemplateName) {
           const weaponTemplate = getTemplate(weaponTemplateName)
-          if (weaponTemplate && weaponTemplate.weapons) {
+          if (!weaponTemplate) {
+            await interaction.editReply({ 
+              content: `❌ Weapon template **${weaponTemplateName}** not found. Use \`/template view\` to see available templates.` 
+            })
+            return
+          }
+          
+          if (weaponTemplate.weapons) {
             for (const [weaponKey, slots] of Object.entries(weaponTemplate.weapons)) {
               const weapon = getWeapon(weaponKey)
               if (weapon) {
@@ -923,28 +828,32 @@ if (sub === 'attendance') {
           .setColor(0x8b0000)
           .setDescription(embedDescription)
 
-        // Dynamically add role fields based on caps
-        // Add fields for roles with slots > 0 or unlimited (including bench/absence)
-        for (const [role, cap] of Object.entries(contentData.caps)) {
-          if (cap > 0 || role === 'bench' || role === 'absence') {
-            // Get icon and display name (check game templates first)
-            const icon = isGameTemplate && GAME_ROLE_ICONS[role] 
-              ? GAME_ROLE_ICONS[role] 
-              : (ROLE_ICONS[role] || '❓')
-            
-            const displayName = isGameTemplate && GAME_ROLE_DISPLAY[role]
-              ? GAME_ROLE_DISPLAY[role]
-              : (ROLE_DISPLAY_NAMES[role] || role)
-
-            const count = contentData.roles[role] ? contentData.roles[role].length : 0
-            const capText = cap === Infinity ? '' : ` (${count}/${cap})`
-            
-            embed.addFields({
-              name: `${icon} ${displayName}${capText}`,
-              value: '—'
-            })
-          }
+        // Add weapon role fields
+        for (const [weaponKey, weaponData] of Object.entries(contentData.weaponRoles)) {
+          const weapon = weaponData.weapon
+          const slots = weaponData.slots
+          const count = weaponData.signups.length
+          
+          embed.addFields({
+            name: `${weapon.emoji} ${weapon.name} (${count}/${slots})`,
+            value: '—',
+            inline: false
+          })
         }
+
+        // Always add Bench and Absence
+        embed.addFields(
+          {
+            name: `${ROLE_ICONS.bench} ${ROLE_DISPLAY_NAMES.bench}`,
+            value: '—',
+            inline: false
+          },
+          {
+            name: `${ROLE_ICONS.absence} ${ROLE_DISPLAY_NAMES.absence}`,
+            value: '—',
+            inline: false
+          }
+        )
 
         const msg = await interaction.editReply({
           embeds: [embed],
@@ -1275,7 +1184,7 @@ async function updateEmbed(message, data) {
   const embed = EmbedBuilder.from(message.embeds[0])
   embed.setFields([])
 
-  // First, show weapon-specific roles if they exist
+  // Show weapon-specific roles
   if (data.weaponRoles && Object.keys(data.weaponRoles).length > 0) {
     for (const [weaponKey, weaponData] of Object.entries(data.weaponRoles)) {
       const weapon = weaponData.weapon
@@ -1296,48 +1205,33 @@ async function updateEmbed(message, data) {
     }
   }
 
-  // Then show standard roles that have caps > 0
-  for (const [role, cap] of Object.entries(data.caps)) {
-    if (cap > 0 || role === 'bench' || role === 'absence') {
-      let users
-      
-      // Special formatting for bench to show desired role
-      if (role === 'bench' && data.roles[role]) {
-        users = data.roles[role]
-          .sort((a, b) => a.order - b.order)
-          .map(u => `${u.order}. <@${u.userId}>${u.desiredRole ? ` *(${u.desiredRole})*` : ''}`)
-          .join('\n') || '—'
-      } else {
-        users = data.roles[role]
-          ? data.roles[role]
-            .sort((a, b) => a.order - b.order)
-            .map(u => `${u.order}. <@${u.userId}>`)
-            .join('\n')
-          : '—'
-      }
-      
-      const finalUsers = users || '—'
+  // Show bench with desired roles
+  const benchUsers = data.roles.bench
+    ? data.roles.bench
+        .sort((a, b) => a.order - b.order)
+        .map(u => `${u.order}. <@${u.userId}>${u.desiredRole ? ` *(${u.desiredRole})*` : ''}`)
+        .join('\n')
+    : '—'
 
-      const count = data.roles[role] ? data.roles[role].length : 0
-      
-      // Get icon and display name (check game templates first)
-      const icon = data.isGameTemplate && GAME_ROLE_ICONS[role] 
-        ? GAME_ROLE_ICONS[role] 
-        : (ROLE_ICONS[role] || '❓')
-      
-      const displayName = data.isGameTemplate && GAME_ROLE_DISPLAY[role]
-        ? GAME_ROLE_DISPLAY[role]
-        : (ROLE_DISPLAY_NAMES[role] || role)
+  embed.addFields({
+    name: `${ROLE_ICONS.bench} ${ROLE_DISPLAY_NAMES.bench}`,
+    value: benchUsers || '—',
+    inline: false
+  })
 
-      const capText = cap === Infinity ? '' : ` (${count}/${cap})`
+  // Show absence
+  const absenceUsers = data.roles.absence
+    ? data.roles.absence
+        .sort((a, b) => a.order - b.order)
+        .map(u => `${u.order}. <@${u.userId}>`)
+        .join('\n')
+    : '—'
 
-      embed.addFields({
-        name: `${icon} ${displayName}${capText}`,
-        value: finalUsers,
-        inline: false
-      })
-    }
-  }
+  embed.addFields({
+    name: `${ROLE_ICONS.absence} ${ROLE_DISPLAY_NAMES.absence}`,
+    value: absenceUsers || '—',
+    inline: false
+  })
 
   await message.edit({ embeds: [embed] })
 }
@@ -1446,10 +1340,19 @@ async function markLateAtMass(channelId) {
 
   const present = new Set(vc.members.map(m => m.id))
 
-  // Skip checking absence and bench roles
+  // Check weapon roles
+  if (data.weaponRoles) {
+    for (const [weaponKey, weaponData] of Object.entries(data.weaponRoles)) {
+      for (const user of weaponData.signups) {
+        if (!present.has(user.userId)) {
+          data.attendance.late.add(user.userId)
+        }
+      }
+    }
+  }
+
+  // Check standard roles (skip bench and absence)
   const excludeRoles = ['bench', 'absence']
-  
-  // Check all roles except excluded ones
   for (const [role, users] of Object.entries(data.roles)) {
     if (excludeRoles.includes(role)) continue
     if (!users || !Array.isArray(users)) continue
@@ -1490,15 +1393,33 @@ async function markAbsentAfterGrace(channelId) {
       // Mark absent (FINAL)
       data.attendance.absent.add(userId)
 
-      // Find what role they had and remove them
+      // Find what role they had and remove them (check weapon roles first)
       let removedRole = null
-      for (const role of Object.keys(data.roles)) {
-        if (role === 'bench' || role === 'absence') continue
-        const found = data.roles[role].find(u => u.userId === userId)
-        if (found) {
-          removedRole = role
-          data.roles[role] = data.roles[role].filter(u => u.userId !== userId)
-          break
+      let removedWeaponKey = null
+      
+      // Check weapon roles
+      if (data.weaponRoles) {
+        for (const [weaponKey, weaponData] of Object.entries(data.weaponRoles)) {
+          const found = weaponData.signups.find(u => u.userId === userId)
+          if (found) {
+            removedWeaponKey = weaponKey
+            removedRole = weaponData.weapon.name
+            weaponData.signups = weaponData.signups.filter(u => u.userId !== userId)
+            break
+          }
+        }
+      }
+      
+      // Check standard roles if not found in weapon roles
+      if (!removedRole) {
+        for (const role of Object.keys(data.roles)) {
+          if (role === 'bench' || role === 'absence') continue
+          const found = data.roles[role].find(u => u.userId === userId)
+          if (found) {
+            removedRole = role
+            data.roles[role] = data.roles[role].filter(u => u.userId !== userId)
+            break
+          }
         }
       }
 
@@ -1509,7 +1430,28 @@ async function markAbsentAfterGrace(channelId) {
       })
 
       // Try to promote from bench for the freed role
-      if (removedRole) {
+      if (removedWeaponKey && data.weaponRoles[removedWeaponKey]) {
+        // Promote from bench for weapon role
+        const weaponData = data.weaponRoles[removedWeaponKey]
+        const benchUser = data.roles.bench
+          .filter(u => u.desiredRole === weaponData.weapon.name)
+          .sort((a, b) => a.order - b.order)[0]
+
+        if (benchUser && weaponData.signups.length < weaponData.slots) {
+          // Remove from bench
+          data.roles.bench = data.roles.bench.filter(u => u.userId !== benchUser.userId)
+          
+          // Add to weapon role
+          data.orderCounter++
+          weaponData.signups.push({
+            userId: benchUser.userId,
+            order: data.orderCounter
+          })
+          
+          promotedUsers.push({ userId: benchUser.userId, role: weaponData.weapon.name })
+        }
+      } else if (removedRole && data.caps[removedRole]) {
+        // Promote from bench for standard role
         const benchUser = data.roles.bench
           .filter(u => u.desiredRole === removedRole)
           .sort((a, b) => a.order - b.order)[0]

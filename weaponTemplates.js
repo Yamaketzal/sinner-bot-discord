@@ -218,7 +218,16 @@ const WEAPON_ALIASES = {
   'soulscythe': 'soulscythe',
   'balance': 'staff-of-balance',
   'grail': 'grailseeker',
-  'grailseeker': 'grailseeker'
+  'grailseeker': 'grailseeker',
+  
+  // Shapeshifter aliases
+  'prowling': 'prowling-staff',
+  'rootbound': 'rootbound-staff',
+  'primal': 'primal-staff',
+  'bloodmoon': 'bloodmoon-staff',
+  'hellspawn': 'hellspawn-staff',
+  'earthrune': 'earthrune-staff',
+  'lightcaller': 'lightcaller'
 }
 
 /**

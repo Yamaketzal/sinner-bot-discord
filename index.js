@@ -116,19 +116,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('weapons')
-    .setDescription('View available Albion weapons')
-    .addStringOption(opt =>
-      opt
-        .setName('role')
-        .setDescription('Filter by role type (optional)')
-        .setRequired(false)
-        .addChoices(
-          { name: 'Tank', value: 'tank' },
-          { name: 'Healer', value: 'healer' },
-          { name: 'DPS', value: 'dps' },
-          { name: 'Support', value: 'support' }
-        )
-    ),
+    .setDescription('View available Albion weapons'),
 
   new SlashCommandBuilder()
     .setName('template')
@@ -175,6 +163,12 @@ const commands = [
             .setRequired(true)
             .setMinValue(1)
             .setMaxValue(10)
+        )
+        .addStringOption(opt =>
+          opt
+            .setName('custom_role_name')
+            .setDescription('Custom display name (e.g., "SPAM DPS" or "High DPS (Royal Robe)")')
+            .setRequired(false)
         )
     )
     .addSubcommand(sub =>
@@ -297,17 +291,9 @@ client.on('interactionCreate', async interaction => {
 
   // /weapons - Show available Albion weapons
   if (interaction.commandName === 'weapons') {
-    const roleFilter = interaction.options.getString('role')
-    
-    let weaponList = Object.entries(ALBION_WEAPONS)
-    
-    if (roleFilter) {
-      weaponList = weaponList.filter(([_, weapon]) => weapon.role === roleFilter)
-    }
-    
     // Group by category
     const grouped = {}
-    for (const [key, weapon] of weaponList) {
+    for (const [key, weapon] of Object.entries(ALBION_WEAPONS)) {
       if (!grouped[weapon.category]) {
         grouped[weapon.category] = []
       }
@@ -316,9 +302,9 @@ client.on('interactionCreate', async interaction => {
     
     const embed = new EmbedBuilder()
       .setColor(0x8b0000)
-      .setTitle(`⚔️ Albion Online Weapons ${roleFilter ? `(${roleFilter.toUpperCase()})` : ''}`)
+      .setTitle('⚔️ Albion Online Weapons')
       .setDescription('Use these weapon names with `x <weapon-name>` to sign up!\nExample: `x hallowfall` or `x blazing-staff`')
-      .setFooter({ text: 'Tip: Use /roster add to create weapon-specific slots' })
+      .setFooter({ text: 'Tip: Role usage is defined by template custom names' })
     
     for (const [category, weapons] of Object.entries(grouped)) {
       const weaponNames = weapons
@@ -374,6 +360,7 @@ client.on('interactionCreate', async interaction => {
       const templateName = interaction.options.getString('template').toLowerCase()
       const weaponInput = interaction.options.getString('weapon').toLowerCase()
       const slots = interaction.options.getInteger('slots')
+      const customRoleName = interaction.options.getString('custom_role_name')
 
       const template = getTemplate(templateName)
       if (!template) {
@@ -396,12 +383,16 @@ client.on('interactionCreate', async interaction => {
         return
       }
 
-      // Add weapon to template
-      template.weapons[weaponKey] = slots
+      // Add weapon to template with optional custom name
+      template.weapons[weaponKey] = {
+        slots: slots,
+        customName: customRoleName || null
+      }
       saveTemplate(templateName, template.weapons, template.description)
 
+      const displayName = customRoleName || weapon.name
       await interaction.reply({ 
-        content: `✅ Added **${slots}x ${weapon.emoji} ${weapon.name}** to template **${templateName}**!`, 
+        content: `✅ Added **${slots}x ${weapon.emoji} ${displayName}** to template **${templateName}**!`, 
         ephemeral: true 
       })
       return
@@ -462,10 +453,15 @@ client.on('interactionCreate', async interaction => {
         if (Object.keys(template.weapons).length === 0) {
           templateText += '— No weapons added yet'
         } else {
-          for (const [weaponKey, slots] of Object.entries(template.weapons)) {
+          for (const [weaponKey, weaponData] of Object.entries(template.weapons)) {
             const weapon = getWeapon(weaponKey)
             if (weapon) {
-              templateText += `${weapon.emoji} **${weapon.name}** x${slots}\n`
+              // Support both old format (number) and new format (object with slots + customName)
+              const slots = typeof weaponData === 'number' ? weaponData : weaponData.slots
+              const customName = typeof weaponData === 'object' ? weaponData.customName : null
+              const displayName = customName || weapon.name
+              
+              templateText += `${weapon.emoji} **${displayName}** x${slots}\n`
             }
           }
         }
@@ -779,12 +775,17 @@ if (sub === 'attendance') {
           }
           
           if (weaponTemplate.weapons) {
-            for (const [weaponKey, slots] of Object.entries(weaponTemplate.weapons)) {
+            for (const [weaponKey, weaponData] of Object.entries(weaponTemplate.weapons)) {
               const weapon = getWeapon(weaponKey)
               if (weapon) {
+                // Support both old format (number) and new format (object)
+                const slots = typeof weaponData === 'number' ? weaponData : weaponData.slots
+                const customName = typeof weaponData === 'object' ? weaponData.customName : null
+                
                 contentData.weaponRoles[weaponKey] = {
                   weapon: weapon,
                   slots: slots,
+                  customName: customName,
                   signups: []
                 }
               }
@@ -832,10 +833,13 @@ if (sub === 'attendance') {
         for (const [weaponKey, weaponData] of Object.entries(contentData.weaponRoles)) {
           const weapon = weaponData.weapon
           const slots = weaponData.slots
+          const customName = weaponData.customName
           const count = weaponData.signups.length
           
+          const displayName = customName || weapon.name
+          
           embed.addFields({
-            name: `${weapon.emoji} ${weapon.name} (${count}/${slots})`,
+            name: `${weapon.emoji} ${displayName} (${count}/${slots})`,
             value: '—',
             inline: false
           })
@@ -974,6 +978,8 @@ if (sub === 'attendance') {
   if (data.weaponRoles && data.weaponRoles[resolvedWeaponKey]) {
     const weaponData = data.weaponRoles[resolvedWeaponKey]
     const weapon = weaponData.weapon
+    const customName = weaponData.customName
+    const displayName = customName || weapon.name
 
     // Remove user from all weapon roles first
     let previousWeapon = null
@@ -996,10 +1002,10 @@ if (sub === 'attendance') {
       data.roles.bench.push({
         userId,
         order: data.orderCounter,
-        desiredRole: weapon.name
+        desiredRole: displayName
       })
       await message.react('🪑')
-      await message.reply(`⚠️ **${weapon.emoji} ${weapon.name}** is full. You've been added to **BENCH** waiting for ${weapon.name}.`)
+      await message.reply(`⚠️ **${weapon.emoji} ${displayName}** is full. You've been added to **BENCH** waiting for ${displayName}.`)
       await refreshEmbed(message, data)
       return
     }
@@ -1012,7 +1018,7 @@ if (sub === 'attendance') {
     })
 
     await message.react('✅')
-    await message.reply(`✅ Signed up as **${weapon.emoji} ${weapon.name}**`)
+    await message.reply(`✅ Signed up as **${weapon.emoji} ${displayName}**`)
     await refreshEmbed(message, data)
     return
   }
@@ -1188,6 +1194,7 @@ async function updateEmbed(message, data) {
   if (data.weaponRoles && Object.keys(data.weaponRoles).length > 0) {
     for (const [weaponKey, weaponData] of Object.entries(data.weaponRoles)) {
       const weapon = weaponData.weapon
+      const customName = weaponData.customName
       const signups = weaponData.signups || []
       const count = signups.length
       const cap = weaponData.slots
@@ -1197,8 +1204,10 @@ async function updateEmbed(message, data) {
         .map(u => `${u.order}. <@${u.userId}>`)
         .join('\n') || '—'
 
+      const displayName = customName || weapon.name
+
       embed.addFields({
-        name: `${weapon.emoji} ${weapon.name} (${count}/${cap})`,
+        name: `${weapon.emoji} ${displayName} (${count}/${cap})`,
         value: users,
         inline: false
       })

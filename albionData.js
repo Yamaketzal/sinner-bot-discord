@@ -1,915 +1,208 @@
 /**
- * Albion Online Database
- * Contains weapons, armor, zones, and their Tier 8 images
- * Image URLs from Albion Online Wiki
+ * Albion Online Weapons Database
+ * Simplified structure: name, category, emoji only
+ * Role/usage is defined by template creators via custom names
  */
 
-// Weapon Categories
-const WEAPON_TYPES = {
-  // Melee DPS
-  SWORD: 'sword',
-  AXE: 'axe',
-  MACE: 'mace',
-  DAGGER: 'dagger',
-  SPEAR: 'spear',
-  QUARTERSTAFF: 'quarterstaff',
-  
-  // Ranged DPS
-  BOW: 'bow',
-  CROSSBOW: 'crossbow',
-  
-  // Magic DPS
-  FIRE_STAFF: 'fire_staff',
-  FROST_STAFF: 'frost_staff',
-  ARCANE_STAFF: 'arcane_staff',
-  CURSE_STAFF: 'curse_staff',
-  
-  // Tank/Support
-  HAMMER: 'hammer',
-  NATURE_STAFF: 'nature_staff',
-  HOLY_STAFF: 'holy_staff'
-}
-
-// Complete Albion Weapons Database with Tier 8 image URLs
 const ALBION_WEAPONS = {
   // SWORDS
-  'broadsword': {
-    name: 'Broadsword',
-    category: 'sword',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Broadsword.png',
-    emoji: '⚔️'
-  },
-  'claymore': {
-    name: 'Claymore',
-    category: 'sword',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Claymore.png',
-    emoji: '⚔️'
-  },
-  'dual-swords': {
-    name: 'Dual Swords',
-    category: 'sword',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_DUALSWORD.png',
-    emoji: '⚔️'
-  },
-  'clarent-blade': {
-    name: 'Clarent Blade',
-    category: 'sword',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Clarent%20Blade.png',
-    emoji: '⚔️'
-  },
-  'carving-sword': {
-    name: 'Carving Sword',
-    category: 'sword',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Carving%20Sword.png',
-    emoji: '⚔️'
-  },
-  'galatine-pair': {
-    name: 'Galatine Pair',
-    category: 'sword',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Galatine%20Pair.png',
-    emoji: '⚔️'
-  },
+  'broadsword': { name: 'Broadsword', category: 'sword', emoji: '⚔️' },
+  'claymore': { name: 'Claymore', category: 'sword', emoji: '⚔️' },
+  'dual-swords': { name: 'Dual Swords', category: 'sword', emoji: '⚔️' },
+  'clarent-blade': { name: 'Clarent Blade', category: 'sword', emoji: '⚔️' },
+  'carving-sword': { name: 'Carving Sword', category: 'sword', emoji: '⚔️' },
+  'galatine-pair': { name: 'Galatine Pair', category: 'sword', emoji: '⚔️' },
 
   // AXES
-  'battleaxe': {
-    name: 'Battleaxe',
-    category: 'axe',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Battleaxe.png',
-    emoji: '🪓'
-  },
-  'greataxe': {
-    name: 'Greataxe',
-    category: 'axe',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_AXE.png',
-    emoji: '🪓'
-  },
-  'halberd': {
-    name: 'Halberd',
-    category: 'axe',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Halberd.png',
-    emoji: '🪓'
-  },
-  'infernal-scythe': {
-    name: 'Infernal Scythe',
-    category: 'axe',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_SCYTHE_HELL.png',
-    emoji: '🪓'
-  },
-  'carrioncaller': {
-    name: 'Carrioncaller',
-    category: 'axe',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Carrioncaller.png',
-    emoji: '🪓'
-  },
-  'bearpaws': {
-    name: 'Bearpaws',
-    category: 'axe',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Bear%20Paws.png',
-    emoji: '🪓'
-  },
-  'realmbreaker': {
-    name: 'Realmbreaker',
-    category: 'axe',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Realmbreaker.png',
-    emoji: '🪓'
-  },
-  'crystal-reaper': {
-    name: 'Crystal Reaper',
-    category: 'axe',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Crystal%20Reaper.png',
-    emoji: '🪓'
-  },
-
+  'battleaxe': { name: 'Battleaxe', category: 'axe', emoji: '🪓' },
+  'greataxe': { name: 'Greataxe', category: 'axe', emoji: '🪓' },
+  'halberd': { name: 'Halberd', category: 'axe', emoji: '🪓' },
+  'infernal-scythe': { name: 'Infernal Scythe', category: 'axe', emoji: '🪓' },
+  'carrioncaller': { name: 'Carrioncaller', category: 'axe', emoji: '🪓' },
+  'realmbreaker': { name: 'Realmbreaker', category: 'axe', emoji: '🪓' },
+  'crystal-reaper': { name: 'Crystal Reaper', category: 'axe', emoji: '🪓' },
 
   // MACES
-  'heavy-mace': {
-    name: 'Heavy Mace',
-    category: 'mace',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_MACE.png',
-    emoji: '🔨'
-  },
-  '1h-mace': {
-    name: '1H Mace',
-    category: 'mace',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Mace.png',
-    emoji: '🔨'
-  },
-  'bedrock-mace': {
-    name: 'Bedrock Mace',
-    category: 'mace',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Bedrock%20Mace.png',
-    emoji: '🔨'
-  },
-  'incubus-mace': {
-    name: 'Incubus Mace',
-    category: 'mace',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Incubus%20Mace.png',
-    emoji: '🔨'
-  },
-  'dreadstorm-monarch': {
-    name: 'Dreadstorm Monarch',
-    category: 'mace',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Dreadstorm%20Monarch.png',
-    emoji: '🔨'
-  },
-
+  'mace': { name: 'Mace', category: 'mace', emoji: '🔨' },
+  'heavy-mace': { name: 'Heavy Mace', category: 'mace', emoji: '🔨' },
+  'bedrock-mace': { name: 'Bedrock Mace', category: 'mace', emoji: '🔨' },
+  'incubus-mace': { name: 'Incubus Mace', category: 'mace', emoji: '🔨' },
+  'dreadstorm-monarch': { name: 'Dreadstorm Monarch', category: 'mace', emoji: '🔨' },
+  
+  // HAMMERS
+  'hammer': { name: 'Hammer', category: 'hammer', emoji: '🔨' },
+  'polehammer': { name: 'Polehammer', category: 'hammer', emoji: '🔨' },
+  'great-hammer': { name: 'Great Hammer', category: 'hammer', emoji: '🔨' },
+  'tombhammer': { name: 'Tombhammer', category: 'hammer', emoji: '🔨' },
+  'grovekeeper': { name: 'Grovekeeper', category: 'hammer', emoji: '🔨' },
+  'hand-of-justice': { name: 'Hand of Justice', category: 'hammer', emoji: '🔨' },
+  'forge-hammers': { name: 'Forge Hammers', category: 'hammer', emoji: '🔨' },
+  'truebolt-hammer': { name: 'Truebolt Hammer', category: 'hammer', emoji: '🔨' },
 
   // DAGGERS
-  'dagger-pair': {
-    name: 'Dagger Pair',
-    category: 'dagger',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_DAGGERPAIR.png',
-    emoji: '🗡️'
-  },
-  'claws': {
-    name: 'Claws',
-    category: 'dagger',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_CLAWPAIR.png',
-    emoji: '🗡️'
-  },
-  'bloodletter': {
-    name: 'Bloodletter',
-    category: 'dagger',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Bloodletter.png',
-    emoji: '🗡️'
-  },
-  'deathgivers': {
-    name: 'Deathgivers',
-    category: 'dagger',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Deathgivers.png',
-    emoji: '🗡️'
-  },
-  'demonfang': {
-    name: 'Demonfang',
-    category: 'dagger',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Demonfang.png',
-    emoji: '🗡️'
-  },
-  '1h-dagger': {
-    name: '1H Dagger',
-    category: 'dagger',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Dagger.png',
-    emoji: '🗡️'
-  },
-  'bridled-fury': {
-    name: 'Bridled Fury',
-    category: 'dagger',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Bridled%20Fury.png',
-    emoji: '🗡️'
-  },
-
+  'dagger': { name: 'Dagger', category: 'dagger', emoji: '🗡️' },
+  'dagger-pair': { name: 'Dagger Pair', category: 'dagger', emoji: '🗡️' },
+  'claws': { name: 'Claws', category: 'dagger', emoji: '🗡️' },
+  'bloodletter': { name: 'Bloodletter', category: 'dagger', emoji: '🗡️' },
+  'deathgivers': { name: 'Deathgivers', category: 'dagger', emoji: '🗡️' },
+  'demonfang': { name: 'Demonfang', category: 'dagger', emoji: '🗡️' },
+  'bridled-fury': { name: 'Bridled Fury', category: 'dagger', emoji: '🗡️' },
 
   // SPEARS
-  'pike': {
-    name: 'Pike',
-    category: 'spear',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_SPEAR.png',
-    emoji: '🔱'
-  },
-  'glaive': {
-    name: 'Glaive',
-    category: 'spear',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_GLAIVE.png',
-    emoji: '🔱'
-  },
-  'trinity-spear': {
-    name: 'Trinity Spear',
-    category: 'spear',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_HARPOON.png',
-    emoji: '🔱'
-  },
-  'spirithunter': {
-    name: 'Spirithunter',
-    category: 'spear',
-    role: 'support',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_SPEAR_KEEPER.png',
-    emoji: '🔱'
-  },
-  'heron-spear': {
-    name: 'Heron Spear',
-    category: 'spear',
-    role: 'support',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Heron%20Spear.png',
-    emoji: '🔱'
-  },
-  'rift-glaive': {
-    name: 'Rift Glaive',
-    category: 'spear',
-    role: 'support',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Rift%20Glaive.png',
-    emoji: '🔱'
-  },
-  'daybreaker': {
-    name: 'Daybreaker',
-    category: 'spear',
-    role: 'support',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Daybreaker.png',
-    emoji: '🔱'
-  },
-
+  'spear': { name: 'Spear', category: 'spear', emoji: '🔱' },
+  'pike': { name: 'Pike', category: 'spear', emoji: '🔱' },
+  'glaive': { name: 'Glaive', category: 'spear', emoji: '🔱' },
+  'trinity-spear': { name: 'Trinity Spear', category: 'spear', emoji: '🔱' },
+  'spirithunter': { name: 'Spirithunter', category: 'spear', emoji: '🔱' },
+  'heron-spear': { name: 'Heron Spear', category: 'spear', emoji: '🔱' },
+  'rift-glaive': { name: 'Rift Glaive', category: 'spear', emoji: '🔱' },
+  'daybreaker': { name: 'Daybreaker', category: 'spear', emoji: '🔱' },
 
   // QUARTERSTAFFS
-  'iron-clad-staff': {
-    name: 'Iron-clad Staff',
-    category: 'quarterstaff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_QUARTERSTAFF.png',
-    emoji: '☯'
-  },
-  'double-bladed-staff': {
-    name: 'Double Bladed Staff',
-    category: 'quarterstaff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_DOUBLEBLADEDSTAFF.png',
-    emoji: '☯'
-  },
-  'black-monk-stave': {
-    name: 'Black Monk Stave',
-    category: 'quarterstaff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_COMBATSTAFF_MORGANA.png',
-    emoji: '☯'
-  },
-  'soulscythe': {
-    name: 'Soulscythe',
-    category: 'quarterstaff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_TWINSCYTHE_HELL.png',
-    emoji: '☯'
-  },
-  'staff-of-balance': {
-    name: 'Staff of Balance',
-    category: 'quarterstaff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Staff%20of%20Balance.png',
-    emoji: '☯'
-  },
-  'grailseeker': {
-    name: 'Grailseeker',
-    category: 'quarterstaff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Grailseeker.png',
-    emoji: '☯'
-  },
-
+  'quarterstaff': { name: 'Quarterstaff', category: 'quarterstaff', emoji: '☯️' },
+  'iron-clad-staff': { name: 'Iron-clad Staff', category: 'quarterstaff', emoji: '☯️' },
+  'double-bladed-staff': { name: 'Double Bladed Staff', category: 'quarterstaff', emoji: '☯️' },
+  'black-monk-stave': { name: 'Black Monk Stave', category: 'quarterstaff', emoji: '☯️' },
+  'soulscythe': { name: 'Soulscythe', category: 'quarterstaff', emoji: '☯️' },
+  'staff-of-balance': { name: 'Staff of Balance', category: 'quarterstaff', emoji: '☯️' },
+  'grailseeker': { name: 'Grailseeker', category: 'quarterstaff', emoji: '☯️' },
 
   // BOWS
-  'bow': {
-    name: 'Bow',
-    category: 'bow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_BOW.png',
-    emoji: '🏹'
-  },
-  'warbow': {
-    name: 'Warbow',
-    category: 'bow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_WARBOW.png',
-    emoji: '🏹'
-  },
-  'bow-of-badon': {
-    name: 'Bow of Badon',
-    category: 'bow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_BOW_KEEPER.png',
-    emoji: '🏹'
-  },
-  'mistpiercer': {
-    name: 'Mistpiercer',
-    category: 'bow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_BOW_AVALON.png',
-    emoji: '🏹'
-  },
-  'wailing-bow': {
-    name: 'Wailing Bow',
-    category: 'bow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_BOW_HELL.png',
-    emoji: '🏹'
-  },
-  'longbow': {
-    name: 'Longbow',
-    category: 'bow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Longbow.png',
-    emoji: '🏹'
-  },
-  'whispering-bow': {
-    name: 'Whispering Bow',
-    category: 'bow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Whispering%20Bow.png',
-    emoji: '🏹'
-  },
+  'bow': { name: 'Bow', category: 'bow', emoji: '🏹' },
+  'longbow': { name: 'Longbow', category: 'bow', emoji: '🏹' },
+  'warbow': { name: 'Warbow', category: 'bow', emoji: '🏹' },
+  'bow-of-badon': { name: 'Bow of Badon', category: 'bow', emoji: '🏹' },
+  'mistpiercer': { name: 'Mistpiercer', category: 'bow', emoji: '🏹' },
+  'wailing-bow': { name: 'Wailing Bow', category: 'bow', emoji: '🏹' },
+  'whispering-bow': { name: 'Whispering Bow', category: 'bow', emoji: '🏹' },
 
   // CROSSBOWS
-  'crossbow': {
-    name: 'Crossbow',
-    category: 'crossbow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_CROSSBOW.png',
-    emoji: '🎯'
-  },
-  'light-crossbow': {
-    name: 'Light Crossbow',
-    category: 'crossbow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Light%20Crossbow.png',
-    emoji: '🎯'
-  },
-  'heavy-crossbow': {
-    name: 'Heavy Crossbow',
-    category: 'crossbow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_CROSSBOWLARGE.png',
-    emoji: '🎯'
-  },
-  'siegebow': {
-    name: 'Siegebow',
-    category: 'crossbow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Siegebow.png',
-    emoji: '🎯'
-  },
-  'boltcasters': {
-    name: 'Boltcasters',
-    category: 'crossbow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Boltcasters.png',
-    emoji: '🎯'
-  },
-  'energy-shaper': {
-    name: 'Energy Shaper',
-    category: 'crossbow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Energy%20Shaper.png',
-    emoji: '🎯'
-  },
-  'weeping-repeater': {
-    name: 'Weeping Repeater',
-    category: 'crossbow',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Weeping%20Repeater.png',
-    emoji: '🎯'
-  },
-
-
+  'crossbow': { name: 'Crossbow', category: 'crossbow', emoji: '🎯' },
+  'light-crossbow': { name: 'Light Crossbow', category: 'crossbow', emoji: '🎯' },
+  'heavy-crossbow': { name: 'Heavy Crossbow', category: 'crossbow', emoji: '🎯' },
+  'weeping-repeater': { name: 'Weeping Repeater', category: 'crossbow', emoji: '🎯' },
+  'boltcasters': { name: 'Boltcasters', category: 'crossbow', emoji: '🎯' },
+  'siegebow': { name: 'Siegebow', category: 'crossbow', emoji: '🎯' },
+  'energy-shaper': { name: 'Energy Shaper', category: 'crossbow', emoji: '🎯' },
 
   // FIRE STAFFS
-  '1h-fire-staff': {
-    name: '1H Fire Staff',
-    category: 'fire_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_MAIN_FIRESTAFF.png',
-    emoji: '🔥'
-  },
-  'infernal-staff': {
-    name: 'Infernal Staff',
-    category: 'fire_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_INFERNOSTAFF.png',
-    emoji: '🔥'
-  },
-  'blazing-staff': {
-    name: 'Blazing Staff',
-    category: 'fire_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Blazing%20Staff.png',
-    emoji: '🔥'
-  },
-  'brimstone-staff': {
-    name: 'Brimstone Staff',
-    category: 'fire_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_FIRESTAFF_HELL.png',
-    emoji: '🔥'
-  },
-  'dawnsong': {
-    name: 'Dawnsong',
-    category: 'fire_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Dawnsong.png',
-    emoji: '🔥'
-  },
+  'fire-staff': { name: 'Fire Staff', category: 'fire_staff', emoji: '🔥' },
+  'great-fire-staff': { name: 'Great Fire Staff', category: 'fire_staff', emoji: '🔥' },
+  'infernal-staff': { name: 'Infernal Staff', category: 'fire_staff', emoji: '🔥' },
+  'blazing-staff': { name: 'Blazing Staff', category: 'fire_staff', emoji: '🔥' },
+  'brimstone-staff': { name: 'Brimstone Staff', category: 'fire_staff', emoji: '🔥' },
+  'dawnsong': { name: 'Dawnsong', category: 'fire_staff', emoji: '🔥' },
+  'lightcaller': { name: 'Lightcaller', category: 'fire_staff', emoji: '🔥' },
 
   // FROST STAFFS
-  '1h-frost-staff': {
-    name: '1H Frost Staff',
-    category: 'frost_staff',
-    role: 'support',
-    image: 'https://render.albiononline.com/v1/item/T8_MAIN_FROSTSTAFF.png',
-    emoji: '❄️'
-  },
-  'glacial-staff': {
-    name: 'Glacial Staff',
-    category: 'frost_staff',
-    role: 'support',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_GLACIALSTAFF.png',
-    emoji: '❄️'
-  },
-  'hoarfrost-staff': {
-    name: 'Hoarfrost Staff',
-    category: 'frost_staff',
-    role: 'support',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Hoarfrost%20Staff.png',
-    emoji: '❄️'
-  },
-  'icicle-staff': {
-    name: 'Icicle Staff',
-    category: 'frost_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_ICEGAUNTLETS_HELL.png',
-    emoji: '❄️'
-  },
-  'permafrost-prism': {
-    name: 'Permafrost',
-    category: 'frost_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_ICECRYSTAL_UNDEAD.png',
-    emoji: '❄️'
-  },
-  'great-frost-staff': {
-    name: 'Great Frost Staff',
-    category: 'frost_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Great%20Frost%20Staff.png',
-    emoji: '❄️'
-  },
-  'arctic-staff': {
-    name: 'Arctic Staff',
-    category: 'frost_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Arctic%20Staff.png',
-    emoji: '❄️'
-  },
-  'chillhowl': {
-    name: 'Chillhowl',
-    category: 'frost_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Chillhowl.png',
-    emoji: '❄️'
-  },
+  'frost-staff': { name: 'Frost Staff', category: 'frost_staff', emoji: '❄️' },
+  'hoarfrost-staff': { name: 'Hoarfrost Staff', category: 'frost_staff', emoji: '❄️' },
+  'glacial-staff': { name: 'Glacial Staff', category: 'frost_staff', emoji: '❄️' },
+  'icicle-staff': { name: 'Icicle Staff', category: 'frost_staff', emoji: '❄️' },
+  'permafrost-prism': { name: 'Permafrost Prism', category: 'frost_staff', emoji: '❄️' },
+  'arctic-staff': { name: 'Arctic Staff', category: 'frost_staff', emoji: '❄️' },
+  'chillhowl': { name: 'Chillhowl', category: 'frost_staff', emoji: '❄️' },
 
   // ARCANE STAFFS
-  'great-arcane-staff': {
-    name: 'Great Arcane Staff',
-    category: 'arcane_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Great%20Arcane%20Staff.png',
-    emoji: '✨'
-  },
-  '1h-arcane-staff': {
-    name: '1H Arcane Staff',
-    category: 'arcane_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_MAIN_ARCANESTAFF.png',
-    emoji: '✨'
-  },
-  'enigmatic-staff': {
-    name: 'Enigmatic Staff',
-    category: 'arcane_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_ENIGMATICSTAFF.png',
-    emoji: '✨'
-  },
-  'witchwork-staff': {
-    name: 'Witchwork Staff',
-    category: 'arcane_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Witchwork%20Staff.png',
-    emoji: '✨'
-  },
-  'occult-staff': {
-    name: 'Occult Staff',
-    category: 'arcane_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_ARCANESTAFF_HELL.png',
-    emoji: '✨'
-  },
-  'evensong': {
-    name: 'Evensong',
-    category: 'arcane_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Evensong.png',
-    emoji: '✨'
-  },
-  'malevolent-locus': {
-    name: 'Malevolent Locus',
-    category: 'arcane_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Malevolent%20Locus.png',
-    emoji: '✨'
-  },
-  'astral-staff': {
-    name: 'Astral Staff',
-    category: 'arcane_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Astral%20Staff.png',
-    emoji: '✨'
-  },
+  'arcane-staff': { name: 'Arcane Staff', category: 'arcane_staff', emoji: '✨' },
+  'great-arcane-staff': { name: 'Great Arcane Staff', category: 'arcane_staff', emoji: '✨' },
+  'enigmatic-staff': { name: 'Enigmatic Staff', category: 'arcane_staff', emoji: '✨' },
+  'witchwork-staff': { name: 'Witchwork Staff', category: 'arcane_staff', emoji: '✨' },
+  'occult-staff': { name: 'Occult Staff', category: 'arcane_staff', emoji: '✨' },
+  'evensong': { name: 'Evensong', category: 'arcane_staff', emoji: '✨' },
+  'malevolent-locus': { name: 'Malevolent Locus', category: 'arcane_staff', emoji: '✨' },
+  'astral-staff': { name: 'Astral Staff', category: 'arcane_staff', emoji: '✨' },
 
   // CURSE STAFFS
-  'great-curse-staff': {
-    name: 'Great Curse Staff',
-    category: 'curse_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Great%20Cursed%20Staff.png',
-    emoji: '💀'
-  },
-  '1h-curse-staff': {
-    name: '1H Curse Staff',
-    category: 'curse_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_MAIN_CURSEDSTAFF.png',
-    emoji: '💀'
-  },
-  'demonic-staff': {
-    name: 'Demonic Staff',
-    category: 'curse_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_DEMONICSTAFF.png',
-    emoji: '💀'
-  },
-  'cursed-skull': {
-    name: 'Cursed Skull',
-    category: 'curse_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_SKULLORB_HELL.png',
-    emoji: '💀'
-  },
-  'shadowcaller': {
-    name: 'Shadowcaller',
-    category: 'curse_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Shadowcaller.png',
-    emoji: '💀'
-  },
-  'lifecurse-staff': {
-    name: 'Lifecurse Staff',
-    category: 'curse_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Lifecurse%20Staff.png',
-    emoji: '💀'
-  },
-  'damnation-staff': {
-    name: 'Damnation Staff',
-    category: 'curse_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Damnation%20Staff.png',
-    emoji: '💀'
-  },
-  'rotcaller-staff': {
-    name: 'Rotcaller Staff',
-    category: 'curse_staff',
-    role: 'dps',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Rotcaller%20Staff.png',
-    emoji: '💀'
-  },
+  'cursed-staff': { name: 'Cursed Staff', category: 'curse_staff', emoji: '💀' },
+  'great-cursed-staff': { name: 'Great Cursed Staff', category: 'curse_staff', emoji: '💀' },
+  'demonic-staff': { name: 'Demonic Staff', category: 'curse_staff', emoji: '💀' },
+  'cursed-skull': { name: 'Cursed Skull', category: 'curse_staff', emoji: '💀' },
+  'shadowcaller': { name: 'Shadowcaller', category: 'curse_staff', emoji: '💀' },
+  'lifecurse-staff': { name: 'Lifecurse Staff', category: 'curse_staff', emoji: '💀' },
+  'damnation-staff': { name: 'Damnation Staff', category: 'curse_staff', emoji: '💀' },
+  'rotcaller-staff': { name: 'Rotcaller Staff', category: 'curse_staff', emoji: '💀' },
 
-  // HAMMERS (Tank)
-  'polehammer': {
-    name: 'Polehammer',
-    category: 'hammer',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_POLEHAMMER.png',
-    emoji: '🔨'
-  },
-  'great-hammer': {
-    name: 'Great Hammer',
-    category: 'hammer',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_HAMMER.png',
-    emoji: '🔨'
-  },
-  'tombhammer': {
-    name: 'Tombhammer',
-    category: 'hammer',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_HAMMER_UNDEAD.png',
-    emoji: '🔨'
-  },
-  'grovekeeper': {
-    name: 'Grovekeeper',
-    category: 'hammer',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Grovekeeper.png',
-    emoji: '🔨'
-  },
-  'hand-of-justice': {
-    name: 'Hand of Justice',
-    category: 'hammer',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_HAMMER_AVALON.png',
-    emoji: '🔨'
-  },
-  'hammer': {
-    name: '1H Hammer',
-    category: 'hammer',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Hammer.png',
-    emoji: '🔨'
-  },
-  'forge-hammers': {
-    name: 'Forge Hammers',
-    category: 'hammer',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Forge%20Hammers.png',
-    emoji: '🔨'
-  },
-  'truebolt-hammer': {
-    name: 'Truebolt Hammer',
-    category: 'hammer',
-    role: 'tank',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Truebolt%20Hammer.png',
-    emoji: '🔨'
-  },
+  // HOLY STAFFS
+  'holy-staff': { name: 'Holy Staff', category: 'holy_staff', emoji: '✝️' },
+  'great-holy-staff': { name: 'Great Holy Staff', category: 'holy_staff', emoji: '✝️' },
+  'divine-staff': { name: 'Divine Staff', category: 'holy_staff', emoji: '✝️' },
+  'lifetouch-staff': { name: 'Lifetouch Staff', category: 'holy_staff', emoji: '✝️' },
+  'hallowfall': { name: 'Hallowfall', category: 'holy_staff', emoji: '✝️' },
+  'redemption': { name: 'Redemption', category: 'holy_staff', emoji: '✝️' },
+  'exalted-staff': { name: 'Exalted Staff', category: 'holy_staff', emoji: '✝️' },
+  'fallen': { name: 'Fallen', category: 'holy_staff', emoji: '✝️' },
 
-  // HOLY STAFFS (Healer)
-  'great-holy-staff': {
-    name: 'Great Holy Staff',
-    category: 'holy_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Great%20Holy%20Staff.png',
-    emoji: '✝️'
-  },
-  '1h-holy-staff': {
-    name: '1H Holy Staff',
-    category: 'holy_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/T8_MAIN_HOLYSTAFF.png',
-    emoji: '✝️'
-  },
-  'divine-staff': {
-    name: 'Divine Staff',
-    category: 'holy_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_DIVINESTAFF.png',
-    emoji: '✝️'
-  },
-  'fallen': {
-    name: 'Fallen',
-    category: 'holy_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_HOLYSTAFF_HELL.png',
-    emoji: '✝️'
-  },
-  'redemption': {
-    name: 'Redemption',
-    category: 'holy_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Redemption%20Staff.png',
-    emoji: '✝️'
-  },
-  'lifetouch-staff': {
-    name: 'Lifetouch Staff',
-    category: 'holy_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Lifetouch%20Staff.png',
-    emoji: '✝️'
-  },
-  'hallowfall': {
-    name: 'Hallowfall',
-    category: 'holy_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Hallowfall.png',
-    emoji: '✝️'
-  },
-  'exalted-staff': {
-    name: 'Exalted Staff',
-    category: 'holy_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Exalted%20Staff.png',
-    emoji: '✝️'
-  },
+  // NATURE STAFFS
+  'nature-staff': { name: 'Nature Staff', category: 'nature_staff', emoji: '🌿' },
+  'great-nature-staff': { name: 'Great Nature Staff', category: 'nature_staff', emoji: '🌿' },
+  'wild-staff': { name: 'Wild Staff', category: 'nature_staff', emoji: '🌿' },
+  'rampant-staff': { name: 'Rampant Staff', category: 'nature_staff', emoji: '🌿' },
+  'blight-staff': { name: 'Blight Staff', category: 'nature_staff', emoji: '🌿' },
+  'druidic-staff': { name: 'Druidic Staff', category: 'nature_staff', emoji: '🌿' },
+  'ironroot-staff': { name: 'Ironroot Staff', category: 'nature_staff', emoji: '🌿' },
+  'forgebark-staff': { name: 'Forgebark Staff', category: 'nature_staff', emoji: '🌿' },
 
-  // NATURE STAFFS (Healer)
-  'great-nature-staff': {
-    name: 'Great Nature Staff',
-    category: 'nature_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Great%20Nature%20Staff.png',
-    emoji: '🌿'
-  },
-  '1h-nature-staff': {
-    name: '1H Nature Staff',
-    category: 'nature_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/T8_MAIN_NATURESTAFF.png',
-    emoji: '🌿'
-  },
-  'wild-staff': {
-    name: 'Wild Staff',
-    category: 'nature_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_WILDSTAFF.png',
-    emoji: '🌿'
-  },
-  'rampant-staff': {
-    name: 'Rampant Staff',
-    category: 'nature_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_NATURESTAFF_KEEPER.png',
-    emoji: '🌿'
-  },
-  'blight-staff': {
-    name: 'Blight Staff',
-    category: 'nature_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/T8_2H_NATURESTAFF_HELL.png',
-    emoji: '🌿'
-  },
-  'druidic-staff': {
-    name: 'Druidic Staff',
-    category: 'nature_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Druidic%20Staff.png',
-    emoji: '🌿'
-  },
-  'ironroot-staff': {
-    name: 'Ironroot Staff',
-    category: 'nature_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Ironroot%20Staff.png',
-    emoji: '🌿'
-  },
-  'forgebark-staff': {
-    name: 'Forgebark Staff',
-    category: 'nature_staff',
-    role: 'healer',
-    image: 'https://render.albiononline.com/v1/item/Elder%27s%20Forgebark%20Staff.png',
-    emoji: '🌿'
-  },
-}
-
-// Armor Types
-const ALBION_ARMOR = {
-  // Helmets
-  'soldier-helmet': {
-    name: 'Soldier Helmet',
-    type: 'plate',
-    slot: 'head',
-    image: 'https://render.albiononline.com/v1/item/T8_HEAD_PLATE_SET1.png'
-  },
-  'guardian-helmet': {
-    name: 'Guardian Helmet',
-    type: 'plate',
-    slot: 'head',
-    image: 'https://render.albiononline.com/v1/item/T8_HEAD_PLATE_SET2.png'
-  },
-  'graveguard-helmet': {
-    name: 'Graveguard Helmet',
-    type: 'plate',
-    slot: 'head',
-    image: 'https://render.albiononline.com/v1/item/T8_HEAD_PLATE_UNDEAD.png'
-  },
-  
-  // Add more armor as needed
+  // SHAPESHIFTER STAFFS (Based on your image)
+  'prowling-staff': { name: 'Prowling Staff', category: 'shapeshifter_staff', emoji: '🐺' },
+  'rootbound-staff': { name: 'Rootbound Staff', category: 'shapeshifter_staff', emoji: '🌳' },
+  'primal-staff': { name: 'Primal Staff', category: 'shapeshifter_staff', emoji: '🦁' },
+  'bloodmoon-staff': { name: 'Bloodmoon Staff', category: 'shapeshifter_staff', emoji: '🌙' },
+  'hellspawn-staff': { name: 'Hellspawn Staff', category: 'shapeshifter_staff', emoji: '👹' },
+  'earthrune-staff': { name: 'Earthrune Staff', category: 'shapeshifter_staff', emoji: '🪨' },
+  'lightcaller': { name: 'Lightcaller', category: 'shapeshifter_staff', emoji: '✨' },
 }
 
 // Zone Types
 const ALBION_ZONES = {
-  'blue-zone': {
+  BLUE: {
     name: 'Blue Zone',
-    tier: 'safe',
-    pvp: false,
-    description: 'Safe zones - No PvP allowed',
-    color: '🔵',
-    emoji: '🛡️'
+    color: 0x3498db,
+    emoji: '🔵',
+    description: 'Safe zone - no full loot PvP'
   },
-  'yellow-zone': {
+  YELLOW: {
     name: 'Yellow Zone',
-    tier: 'low-risk',
-    pvp: 'optional',
-    description: 'Low-risk zones - PvP allowed but penalties apply',
-    color: '🟡',
-    emoji: '⚠️'
+    color: 0xf1c40f,
+    emoji: '🟡',
+    description: 'Partial loot PvP zone'
   },
-  'red-zone': {
+  RED: {
     name: 'Red Zone',
-    tier: 'high-risk',
-    pvp: true,
-    description: 'High-risk zones - Full loot PvP',
-    color: '🔴',
-    emoji: '⚔️'
+    color: 0xe74c3c,
+    emoji: '🔴',
+    description: 'Full loot PvP zone'
   },
-  'black-zone': {
+  BLACK: {
     name: 'Black Zone',
-    tier: 'extreme-risk',
-    pvp: true,
-    description: 'Extreme-risk zones - Full loot PvP, best rewards',
-    color: '⚫',
-    emoji: '💀'
+    color: 0x2c3e50,
+    emoji: '⚫',
+    description: 'Full loot PvP zone with territory control'
   },
-  'roads-of-avalon': {
+  ROADS: {
     name: 'Roads of Avalon',
-    tier: 'special',
-    pvp: true,
-    description: 'Special randomized zones with unique rewards',
-    color: '🟣',
-    emoji: '🌀'
+    color: 0x9b59b6,
+    emoji: '🛣️',
+    description: 'Randomized dungeon network'
   },
-  'mists': {
+  MISTS: {
     name: 'Mists',
-    tier: 'solo',
-    pvp: true,
-    description: 'Solo/small group instanced zones',
-    color: '🌫️',
-    emoji: '🌫️'
+    color: 0x95a5a6,
+    emoji: '🌫️',
+    description: 'Solo/small group PvP zone'
   }
 }
 
-// Helper function to get weapon by name (case insensitive)
-function getWeapon(weaponName) {
-  const key = weaponName.toLowerCase().replace(/\s+/g, '-')
-  return ALBION_WEAPONS[key] || null
+/**
+ * Get a weapon by key
+ */
+function getWeapon(weaponKey) {
+  return ALBION_WEAPONS[weaponKey] || null
 }
 
-// Helper function to get all weapons by role
-function getWeaponsByRole(role) {
-  return Object.entries(ALBION_WEAPONS)
-    .filter(([_, weapon]) => weapon.role === role)
-    .map(([key, weapon]) => ({ key, ...weapon }))
-}
-
-// Helper function to get all weapons by category
-function getWeaponsByCategory(category) {
-  return Object.entries(ALBION_WEAPONS)
-    .filter(([_, weapon]) => weapon.category === category)
-    .map(([key, weapon]) => ({ key, ...weapon }))
-}
-
-// Get weapon choices for Discord slash command
+/**
+ * Get autocomplete choices for weapons
+ */
 function getWeaponChoices() {
   return Object.entries(ALBION_WEAPONS).map(([key, weapon]) => ({
     name: `${weapon.emoji} ${weapon.name}`,
@@ -917,7 +210,9 @@ function getWeaponChoices() {
   }))
 }
 
-// Get zone choices for Discord slash command
+/**
+ * Get autocomplete choices for zones
+ */
 function getZoneChoices() {
   return Object.entries(ALBION_ZONES).map(([key, zone]) => ({
     name: `${zone.emoji} ${zone.name}`,
@@ -926,13 +221,9 @@ function getZoneChoices() {
 }
 
 module.exports = {
-  WEAPON_TYPES,
   ALBION_WEAPONS,
-  ALBION_ARMOR,
   ALBION_ZONES,
   getWeapon,
-  getWeaponsByRole,
-  getWeaponsByCategory,
   getWeaponChoices,
   getZoneChoices
 }

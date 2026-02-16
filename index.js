@@ -11,6 +11,7 @@ const {
 const store = require('./store')
 const { TEMPLATES, ROLE_ICONS, ROLE_DISPLAY_NAMES, getRoleIcon } = require('./roleConfig')
 const { GAME_TEMPLATES, GAME_ROLE_DISPLAY, GAME_ROLE_ICONS } = require('./gameTemplates')
+const { ALBION_WEAPONS, ALBION_ZONES, getWeapon, getWeaponChoices, getZoneChoices } = require('./albionData')
 
 const GUILD_ID = '1360620690323148800'
 
@@ -167,7 +168,64 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName('utc')
-    .setDescription('Shows the current UTC time')
+    .setDescription('Shows the current UTC time'),
+
+  new SlashCommandBuilder()
+    .setName('weapons')
+    .setDescription('View available Albion weapons')
+    .addStringOption(opt =>
+      opt
+        .setName('role')
+        .setDescription('Filter by role type (optional)')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Tank', value: 'tank' },
+          { name: 'Healer', value: 'healer' },
+          { name: 'DPS', value: 'dps' },
+          { name: 'Support', value: 'support' }
+        )
+    ),
+
+  new SlashCommandBuilder()
+    .setName('roster')
+    .setDescription('Manage weapon-specific roles for content')
+    .addSubcommand(sub =>
+      sub
+        .setName('add')
+        .setDescription('Add a weapon slot to the roster')
+        .addStringOption(opt =>
+          opt
+            .setName('weapon')
+            .setDescription('Select weapon')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addIntegerOption(opt =>
+          opt
+            .setName('slots')
+            .setDescription('Number of slots for this weapon')
+            .setRequired(true)
+            .setMinValue(1)
+            .setMaxValue(10)
+        )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('remove')
+        .setDescription('Remove a weapon slot from the roster')
+        .addStringOption(opt =>
+          opt
+            .setName('weapon')
+            .setDescription('Select weapon to remove')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('view')
+        .setDescription('View current roster configuration')
+    )
 ].map(cmd => cmd.toJSON())
 
 
@@ -193,6 +251,23 @@ client.once('ready', async () => {
 
 /* 3️⃣ Handle slash command */
 client.on('interactionCreate', async interaction => {
+  // Handle autocomplete for weapon selection
+  if (interaction.isAutocomplete()) {
+    if (interaction.commandName === 'roster') {
+      const focusedValue = interaction.options.getFocused().toLowerCase()
+      const weapons = Object.entries(ALBION_WEAPONS)
+        .map(([key, weapon]) => ({
+          name: `${weapon.emoji} ${weapon.name} (${weapon.role})`,
+          value: key
+        }))
+        .filter(choice => choice.name.toLowerCase().includes(focusedValue))
+        .slice(0, 25) // Discord limit
+
+      await interaction.respond(weapons)
+      return
+    }
+  }
+
   if (!interaction.isChatInputCommand()) return
 
   // /ping
@@ -209,6 +284,144 @@ client.on('interactionCreate', async interaction => {
     const utcDate = now.toISOString().slice(0, 10) // YYYY-MM-DD
     await interaction.reply(`🕐 **Current UTC Time**\n📅 Date: \`${utcDate}\`\n⏰ Time: \`${utcTime}\``)
     return
+  }
+
+  // /weapons - Show available Albion weapons
+  if (interaction.commandName === 'weapons') {
+    const roleFilter = interaction.options.getString('role')
+    
+    let weaponList = Object.entries(ALBION_WEAPONS)
+    
+    if (roleFilter) {
+      weaponList = weaponList.filter(([_, weapon]) => weapon.role === roleFilter)
+    }
+    
+    // Group by category
+    const grouped = {}
+    for (const [key, weapon] of weaponList) {
+      if (!grouped[weapon.category]) {
+        grouped[weapon.category] = []
+      }
+      grouped[weapon.category].push({ key, ...weapon })
+    }
+    
+    const embed = new EmbedBuilder()
+      .setColor(0x8b0000)
+      .setTitle(`⚔️ Albion Online Weapons ${roleFilter ? `(${roleFilter.toUpperCase()})` : ''}`)
+      .setDescription('Use these weapon names with `x <weapon-name>` to sign up!\nExample: `x hallowfall` or `x blazing-staff`')
+      .setFooter({ text: 'Tip: Use /roster add to create weapon-specific slots' })
+    
+    for (const [category, weapons] of Object.entries(grouped)) {
+      const weaponNames = weapons
+        .map(w => `${w.emoji} **${w.name}** (\`x ${w.key}\`)`)
+        .join('\n')
+      
+      embed.addFields({
+        name: `${category.toUpperCase().replace(/_/g, ' ')}`,
+        value: weaponNames,
+        inline: false
+      })
+    }
+    
+    await interaction.reply({ embeds: [embed], ephemeral: true })
+    return
+  }
+
+  // /roster command - Manage weapon-specific roles
+  if (interaction.commandName === 'roster') {
+    const channelId = interaction.channel.isThread() 
+      ? interaction.channel.parentId 
+      : interaction.channelId
+    
+    const contentData = store.get(channelId)
+    
+    if (!contentData) {
+      await interaction.reply({ 
+        content: '❌ No active content found. Use `/content start` first.', 
+        ephemeral: true 
+      })
+      return
+    }
+
+    const sub = interaction.options.getSubcommand()
+
+    if (sub === 'add') {
+      const weaponKey = interaction.options.getString('weapon')
+      const slots = interaction.options.getInteger('slots')
+      const weapon = getWeapon(weaponKey)
+
+      if (!weapon) {
+        await interaction.reply({ 
+          content: '❌ Invalid weapon selected.', 
+          ephemeral: true 
+        })
+        return
+      }
+
+      // Initialize weaponRoles if not exists
+      if (!contentData.weaponRoles) {
+        contentData.weaponRoles = {}
+      }
+
+      // Add weapon role
+      contentData.weaponRoles[weaponKey] = {
+        weapon: weapon,
+        slots: slots,
+        signups: []
+      }
+
+      await interaction.reply({ 
+        content: `✅ Added **${slots}x ${weapon.emoji} ${weapon.name}** to the roster!`, 
+        ephemeral: true 
+      })
+
+      // Refresh the embed
+      await refreshEmbed(channelId)
+      return
+    }
+
+    if (sub === 'remove') {
+      const weaponKey = interaction.options.getString('weapon')
+
+      if (!contentData.weaponRoles || !contentData.weaponRoles[weaponKey]) {
+        await interaction.reply({ 
+          content: '❌ This weapon is not in the roster.', 
+          ephemeral: true 
+        })
+        return
+      }
+
+      delete contentData.weaponRoles[weaponKey]
+
+      await interaction.reply({ 
+        content: `✅ Removed weapon from roster.`, 
+        ephemeral: true 
+      })
+
+      await refreshEmbed(channelId)
+      return
+    }
+
+    if (sub === 'view') {
+      if (!contentData.weaponRoles || Object.keys(contentData.weaponRoles).length === 0) {
+        await interaction.reply({ 
+          content: '📋 No weapon-specific roles configured yet.', 
+          ephemeral: true 
+        })
+        return
+      }
+
+      let rosterText = '**📋 Current Roster Configuration:**\n\n'
+      for (const [key, data] of Object.entries(contentData.weaponRoles)) {
+        rosterText += `${data.weapon.emoji} **${data.weapon.name}** - ${data.slots} slots (${data.signups.length} filled)\n`
+      }
+
+      await interaction.reply({ 
+        content: rosterText, 
+        ephemeral: true 
+      })
+      return
+    }
   }
 
   // /content start
@@ -611,6 +824,8 @@ if (sub === 'attendance') {
   withdraw: 'out',
 
   // Game-specific role aliases
+  earthrune: 'earthrune',
+  shadowcaller: 'shadowcaller',
   dreadstorm: 'dreadstorm',
   hallowfall: 'hallowfall',
   cursed: 'cursed_staff',
@@ -647,14 +862,6 @@ if (sub === 'attendance') {
   const parts = message.content.toLowerCase().trim().split(/\s+/)
   if (parts[0] !== 'x') return
 
-  const alias = parts[1]
-  const role = ROLE_ALIASES[alias]
-
-  if (!role) {
-    await message.reply('❌ Invalid role. Try `x dps`, `x healer`, `x tank`.')
-    return
-  }
-
   const parentChannelId = message.channel.parentId
   const data = store.get(parentChannelId)
 
@@ -669,6 +876,65 @@ if (sub === 'attendance') {
   }
 
   const userId = message.author.id
+  
+  // Join the rest of the message to support multi-word weapon names
+  const input = parts.slice(1).join('-')
+  
+  // Check if this is a weapon signup
+  if (data.weaponRoles && data.weaponRoles[input]) {
+    const weaponData = data.weaponRoles[input]
+    const weapon = weaponData.weapon
+
+    // Remove user from all weapon roles first
+    let previousWeapon = null
+    if (data.weaponRoles) {
+      for (const [key, wData] of Object.entries(data.weaponRoles)) {
+        const found = wData.signups.find(u => u.userId === userId)
+        if (found) previousWeapon = key
+        wData.signups = wData.signups.filter(u => u.userId !== userId)
+      }
+    }
+
+    // Remove from standard roles too
+    for (const r in data.roles) {
+      data.roles[r] = data.roles[r].filter(u => u.userId !== userId)
+    }
+
+    // Check if weapon slot is full
+    if (weaponData.signups.length >= weaponData.slots) {
+      data.orderCounter++
+      data.roles.bench.push({
+        userId,
+        order: data.orderCounter,
+        desiredRole: weapon.name
+      })
+      await message.react('🪑')
+      await message.reply(`⚠️ **${weapon.emoji} ${weapon.name}** is full. You've been added to **BENCH** waiting for ${weapon.name}.`)
+      await refreshEmbed(message, data)
+      return
+    }
+
+    // Add to weapon role
+    data.orderCounter++
+    weaponData.signups.push({
+      userId,
+      order: data.orderCounter
+    })
+
+    await message.react('✅')
+    await message.reply(`✅ Signed up as **${weapon.emoji} ${weapon.name}**`)
+    await refreshEmbed(message, data)
+    return
+  }
+
+  // Otherwise, treat as standard role signup
+  const alias = parts[1]
+  const role = ROLE_ALIASES[alias]
+
+  if (!role) {
+    await message.reply('❌ Invalid role. Try `x dps`, `x healer`, `x tank`, or use a weapon name like `x hallowfall`.')
+    return
+  }
 
   // Check if role exists in this content's roles
   if (!data.roles.hasOwnProperty(role) && role !== 'out') {
@@ -684,8 +950,21 @@ if (sub === 'attendance') {
 
   // ⏰ Handle x out / cancel
   if (role === 'out') {
-    // Check what role user had before leaving
+    // Check what role user had before leaving (check both weapon roles and standard roles)
     let previousRole = null
+    
+    // Check weapon roles
+    if (data.weaponRoles) {
+      for (const [key, wData] of Object.entries(data.weaponRoles)) {
+        const found = wData.signups.find(u => u.userId === userId)
+        if (found) {
+          previousRole = wData.weapon.name
+          wData.signups = wData.signups.filter(u => u.userId !== userId)
+        }
+      }
+    }
+    
+    // Check standard roles
     for (const r in data.roles) {
       const found = data.roles[r].find(u => u.userId === userId)
       if (found && r !== 'bench' && r !== 'absence') {
@@ -711,6 +990,17 @@ if (sub === 'attendance') {
 
   // Remove user from all roles first (but remember if they were in a role)
   let previousRole = null
+  
+  // Remove from weapon roles
+  if (data.weaponRoles) {
+    for (const [key, wData] of Object.entries(data.weaponRoles)) {
+      const found = wData.signups.find(u => u.userId === userId)
+      if (found) previousRole = wData.weapon.name
+      wData.signups = wData.signups.filter(u => u.userId !== userId)
+    }
+  }
+  
+  // Remove from standard roles
   for (const r in data.roles) {
     const found = data.roles[r].find(u => u.userId === userId)
     if (found && r !== 'bench' && r !== 'absence') {
@@ -804,7 +1094,28 @@ async function updateEmbed(message, data) {
   const embed = EmbedBuilder.from(message.embeds[0])
   embed.setFields([])
 
-  // Show roles that have caps > 0
+  // First, show weapon-specific roles if they exist
+  if (data.weaponRoles && Object.keys(data.weaponRoles).length > 0) {
+    for (const [weaponKey, weaponData] of Object.entries(data.weaponRoles)) {
+      const weapon = weaponData.weapon
+      const signups = weaponData.signups || []
+      const count = signups.length
+      const cap = weaponData.slots
+
+      let users = signups
+        .sort((a, b) => a.order - b.order)
+        .map(u => `${u.order}. <@${u.userId}>`)
+        .join('\n') || '—'
+
+      embed.addFields({
+        name: `${weapon.emoji} ${weapon.name} (${count}/${cap})`,
+        value: users,
+        inline: false
+      })
+    }
+  }
+
+  // Then show standard roles that have caps > 0
   for (const [role, cap] of Object.entries(data.caps)) {
     if (cap > 0 || role === 'bench' || role === 'absence') {
       let users

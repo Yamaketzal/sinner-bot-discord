@@ -314,19 +314,7 @@ client.on('interactionCreate', async interaction => {
     const focusedOption = interaction.options.getFocused(true)
     const focusedValue = focusedOption.value.toLowerCase()
 
-    // Autocomplete for template commands
-    if (interaction.commandName === 'template' || (interaction.commandName === 'content' && focusedOption.name === 'weapon_template')) {
-      const templates = listTemplates()
-      const choices = templates
-        .filter(t => t.name.includes(focusedValue))
-        .map(t => ({ name: `⚔️ ${t.name}`, value: t.name }))
-        .slice(0, 25)
-      
-      await interaction.respond(choices)
-      return
-    }
-
-    // Autocomplete for weapon selection
+    // Autocomplete for weapon selection (CHECK THIS FIRST!)
     if (focusedOption.name === 'weapon') {
       const weapons = Object.entries(ALBION_WEAPONS)
         .map(([key, weapon]) => ({
@@ -337,6 +325,18 @@ client.on('interactionCreate', async interaction => {
         .slice(0, 25)
 
       await interaction.respond(weapons)
+      return
+    }
+
+    // Autocomplete for template selection
+    if (focusedOption.name === 'template' || focusedOption.name === 'weapon_template') {
+      const templates = listTemplates()
+      const choices = templates
+        .filter(t => t.name.includes(focusedValue))
+        .map(t => ({ name: `⚔️ ${t.name}`, value: t.name }))
+        .slice(0, 25)
+      
+      await interaction.respond(choices)
       return
     }
   }

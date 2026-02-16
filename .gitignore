@@ -1,3 +1,6 @@
 .env
 .env.*
 node_modules/
+
+# Weapon templates storage (contains guild-specific data)
+weapon_templates.json

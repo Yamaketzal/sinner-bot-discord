@@ -3,9 +3,54 @@
  * Stores custom weapon-based templates created by Content Leads
  */
 
+const fs = require('fs')
+const path = require('path')
+
+// File path for persistent storage
+const TEMPLATES_FILE = path.join(__dirname, 'weapon_templates.json')
+
 // In-memory storage for weapon templates
 // Format: { templateName: { weapons: { weaponKey: slots }, description: '' } }
 const WEAPON_TEMPLATES = new Map()
+
+/**
+ * Load templates from file on startup
+ */
+function loadTemplatesFromFile() {
+  try {
+    if (fs.existsSync(TEMPLATES_FILE)) {
+      const data = fs.readFileSync(TEMPLATES_FILE, 'utf8')
+      const templates = JSON.parse(data)
+      
+      // Load into Map
+      for (const [name, templateData] of Object.entries(templates)) {
+        WEAPON_TEMPLATES.set(name, templateData)
+      }
+      
+      console.log(`✅ Loaded ${WEAPON_TEMPLATES.size} weapon templates from file`)
+    } else {
+      console.log('📝 No existing weapon templates file found. Starting fresh.')
+    }
+  } catch (err) {
+    console.error('❌ Error loading weapon templates:', err)
+  }
+}
+
+/**
+ * Save all templates to file
+ */
+function saveTemplatesToFile() {
+  try {
+    const templates = Object.fromEntries(WEAPON_TEMPLATES)
+    fs.writeFileSync(TEMPLATES_FILE, JSON.stringify(templates, null, 2), 'utf8')
+    console.log(`💾 Saved ${WEAPON_TEMPLATES.size} weapon templates to file`)
+  } catch (err) {
+    console.error('❌ Error saving weapon templates:', err)
+  }
+}
+
+// Load templates when module is imported
+loadTemplatesFromFile()
 
 // Weapon aliases/nicknames for easier signup
 const WEAPON_ALIASES = {
@@ -184,6 +229,7 @@ function saveTemplate(templateName, weaponSlots, description = '') {
     weapons: weaponSlots,
     description: description
   })
+  saveTemplatesToFile() // Persist to file
   return true
 }
 
@@ -198,7 +244,11 @@ function getTemplate(templateName) {
  * Delete a weapon template
  */
 function deleteTemplate(templateName) {
-  return WEAPON_TEMPLATES.delete(templateName.toLowerCase())
+  const result = WEAPON_TEMPLATES.delete(templateName.toLowerCase())
+  if (result) {
+    saveTemplatesToFile() // Persist to file
+  }
+  return result
 }
 
 /**

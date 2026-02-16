@@ -12,6 +12,7 @@ const store = require('./store')
 const { TEMPLATES, ROLE_ICONS, ROLE_DISPLAY_NAMES, getRoleIcon } = require('./roleConfig')
 const { GAME_TEMPLATES, GAME_ROLE_DISPLAY, GAME_ROLE_ICONS } = require('./gameTemplates')
 const { ALBION_WEAPONS, ALBION_ZONES, getWeapon, getWeaponChoices, getZoneChoices } = require('./albionData')
+const { saveTemplate, getTemplate, deleteTemplate, listTemplates, resolveWeaponAlias } = require('./weaponTemplates')
 
 const GUILD_ID = '1360620690323148800'
 
@@ -80,6 +81,13 @@ const commands = [
               { name: '🎯 Faction Capping PvP', value: 'faction-capping' },
               { name: '🎯 5 Man Tracking', value: '5man-tracking' }
             )
+        )
+        .addStringOption(opt =>
+          opt
+            .setName('weapon_template')
+            .setDescription('Pick a weapon template (optional, overrides template)')
+            .setRequired(false)
+            .setAutocomplete(true)
         )
         .addIntegerOption(opt =>
           opt
@@ -187,23 +195,47 @@ const commands = [
     ),
 
   new SlashCommandBuilder()
-    .setName('roster')
-    .setDescription('Manage weapon-specific roles for content')
+    .setName('template')
+    .setDescription('Manage weapon templates for content')
     .addSubcommand(sub =>
       sub
-        .setName('add')
-        .setDescription('Add a weapon slot to the roster')
+        .setName('create')
+        .setDescription('Create a new weapon template')
+        .addStringOption(opt =>
+          opt
+            .setName('name')
+            .setDescription('Template name (e.g., "ava-standard")')
+            .setRequired(true)
+        )
+        .addStringOption(opt =>
+          opt
+            .setName('description')
+            .setDescription('Template description (optional)')
+            .setRequired(false)
+        )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('add-weapon')
+        .setDescription('Add a weapon to a template')
+        .addStringOption(opt =>
+          opt
+            .setName('template')
+            .setDescription('Template name')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
         .addStringOption(opt =>
           opt
             .setName('weapon')
-            .setDescription('Select weapon')
+            .setDescription('Weapon name or alias (e.g., "hallow" or "hallowfall")')
             .setRequired(true)
             .setAutocomplete(true)
         )
         .addIntegerOption(opt =>
           opt
             .setName('slots')
-            .setDescription('Number of slots for this weapon')
+            .setDescription('Number of slots')
             .setRequired(true)
             .setMinValue(1)
             .setMaxValue(10)
@@ -211,12 +243,19 @@ const commands = [
     )
     .addSubcommand(sub =>
       sub
-        .setName('remove')
-        .setDescription('Remove a weapon slot from the roster')
+        .setName('remove-weapon')
+        .setDescription('Remove a weapon from a template')
+        .addStringOption(opt =>
+          opt
+            .setName('template')
+            .setDescription('Template name')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
         .addStringOption(opt =>
           opt
             .setName('weapon')
-            .setDescription('Select weapon to remove')
+            .setDescription('Weapon to remove')
             .setRequired(true)
             .setAutocomplete(true)
         )
@@ -224,7 +263,26 @@ const commands = [
     .addSubcommand(sub =>
       sub
         .setName('view')
-        .setDescription('View current roster configuration')
+        .setDescription('View a template or list all templates')
+        .addStringOption(opt =>
+          opt
+            .setName('template')
+            .setDescription('Template name (leave empty to list all)')
+            .setRequired(false)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('delete')
+        .setDescription('Delete a template')
+        .addStringOption(opt =>
+          opt
+            .setName('template')
+            .setDescription('Template name to delete')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
     )
 ].map(cmd => cmd.toJSON())
 
@@ -251,17 +309,32 @@ client.once('ready', async () => {
 
 /* 3️⃣ Handle slash command */
 client.on('interactionCreate', async interaction => {
-  // Handle autocomplete for weapon selection
+  // Handle autocomplete
   if (interaction.isAutocomplete()) {
-    if (interaction.commandName === 'roster') {
-      const focusedValue = interaction.options.getFocused().toLowerCase()
+    const focusedOption = interaction.options.getFocused(true)
+    const focusedValue = focusedOption.value.toLowerCase()
+
+    // Autocomplete for template commands
+    if (interaction.commandName === 'template' || (interaction.commandName === 'content' && focusedOption.name === 'weapon_template')) {
+      const templates = listTemplates()
+      const choices = templates
+        .filter(t => t.name.includes(focusedValue))
+        .map(t => ({ name: `⚔️ ${t.name}`, value: t.name }))
+        .slice(0, 25)
+      
+      await interaction.respond(choices)
+      return
+    }
+
+    // Autocomplete for weapon selection
+    if (focusedOption.name === 'weapon') {
       const weapons = Object.entries(ALBION_WEAPONS)
         .map(([key, weapon]) => ({
           name: `${weapon.emoji} ${weapon.name} (${weapon.role})`,
           value: key
         }))
         .filter(choice => choice.name.toLowerCase().includes(focusedValue))
-        .slice(0, 25) // Discord limit
+        .slice(0, 25)
 
       await interaction.respond(weapons)
       return
@@ -327,17 +400,13 @@ client.on('interactionCreate', async interaction => {
     return
   }
 
-  // /roster command - Manage weapon-specific roles
-  if (interaction.commandName === 'roster') {
-    const channelId = interaction.channel.isThread() 
-      ? interaction.channel.parentId 
-      : interaction.channelId
-    
-    const contentData = store.get(channelId)
-    
-    if (!contentData) {
+  // /template command - Manage weapon templates
+  if (interaction.commandName === 'template') {
+    // Check if user has Content Lead role
+    const member = interaction.member
+    if (!member.roles.cache.has(CONTENT_LEAD_ROLE_ID)) {
       await interaction.reply({ 
-        content: '❌ No active content found. Use `/content start` first.', 
+        content: '❌ You need the **Content Lead** role to manage templates.', 
         ephemeral: true 
       })
       return
@@ -345,79 +414,169 @@ client.on('interactionCreate', async interaction => {
 
     const sub = interaction.options.getSubcommand()
 
-    if (sub === 'add') {
-      const weaponKey = interaction.options.getString('weapon')
+    if (sub === 'create') {
+      const name = interaction.options.getString('name').toLowerCase()
+      const description = interaction.options.getString('description') || ''
+
+      if (getTemplate(name)) {
+        await interaction.reply({ 
+          content: `❌ Template **${name}** already exists. Use \`/template delete\` first if you want to recreate it.`, 
+          ephemeral: true 
+        })
+        return
+      }
+
+      saveTemplate(name, {}, description)
+      await interaction.reply({ 
+        content: `✅ Created template **${name}**!\nNow add weapons with \`/template add-weapon\``, 
+        ephemeral: true 
+      })
+      return
+    }
+
+    if (sub === 'add-weapon') {
+      const templateName = interaction.options.getString('template').toLowerCase()
+      const weaponInput = interaction.options.getString('weapon').toLowerCase()
       const slots = interaction.options.getInteger('slots')
+
+      const template = getTemplate(templateName)
+      if (!template) {
+        await interaction.reply({ 
+          content: `❌ Template **${templateName}** not found. Create it first with \`/template create\``, 
+          ephemeral: true 
+        })
+        return
+      }
+
+      // Resolve weapon alias
+      const weaponKey = resolveWeaponAlias(weaponInput)
       const weapon = getWeapon(weaponKey)
 
       if (!weapon) {
         await interaction.reply({ 
-          content: '❌ Invalid weapon selected.', 
+          content: `❌ Weapon **${weaponInput}** not found. Use \`/weapons\` to see available weapons.`, 
           ephemeral: true 
         })
         return
       }
 
-      // Initialize weaponRoles if not exists
-      if (!contentData.weaponRoles) {
-        contentData.weaponRoles = {}
-      }
-
-      // Add weapon role
-      contentData.weaponRoles[weaponKey] = {
-        weapon: weapon,
-        slots: slots,
-        signups: []
-      }
+      // Add weapon to template
+      template.weapons[weaponKey] = slots
+      saveTemplate(templateName, template.weapons, template.description)
 
       await interaction.reply({ 
-        content: `✅ Added **${slots}x ${weapon.emoji} ${weapon.name}** to the roster!`, 
+        content: `✅ Added **${slots}x ${weapon.emoji} ${weapon.name}** to template **${templateName}**!`, 
         ephemeral: true 
       })
-
-      // Refresh the embed
-      await refreshEmbed(channelId)
       return
     }
 
-    if (sub === 'remove') {
-      const weaponKey = interaction.options.getString('weapon')
+    if (sub === 'remove-weapon') {
+      const templateName = interaction.options.getString('template').toLowerCase()
+      const weaponInput = interaction.options.getString('weapon').toLowerCase()
 
-      if (!contentData.weaponRoles || !contentData.weaponRoles[weaponKey]) {
+      const template = getTemplate(templateName)
+      if (!template) {
         await interaction.reply({ 
-          content: '❌ This weapon is not in the roster.', 
+          content: `❌ Template **${templateName}** not found.`, 
           ephemeral: true 
         })
         return
       }
 
-      delete contentData.weaponRoles[weaponKey]
+      const weaponKey = resolveWeaponAlias(weaponInput)
+      if (!template.weapons[weaponKey]) {
+        await interaction.reply({ 
+          content: `❌ Weapon not found in template **${templateName}**.`, 
+          ephemeral: true 
+        })
+        return
+      }
+
+      delete template.weapons[weaponKey]
+      saveTemplate(templateName, template.weapons, template.description)
 
       await interaction.reply({ 
-        content: `✅ Removed weapon from roster.`, 
+        content: `✅ Removed weapon from template **${templateName}**!`, 
         ephemeral: true 
       })
-
-      await refreshEmbed(channelId)
       return
     }
 
     if (sub === 'view') {
-      if (!contentData.weaponRoles || Object.keys(contentData.weaponRoles).length === 0) {
+      const templateName = interaction.options.getString('template')?.toLowerCase()
+
+      if (templateName) {
+        // View specific template
+        const template = getTemplate(templateName)
+        if (!template) {
+          await interaction.reply({ 
+            content: `❌ Template **${templateName}** not found.`, 
+            ephemeral: true 
+          })
+          return
+        }
+
+        let templateText = `**⚔️ Template: ${templateName}**\n`
+        if (template.description) {
+          templateText += `*${template.description}*\n`
+        }
+        templateText += '\n**Weapons:**\n'
+
+        if (Object.keys(template.weapons).length === 0) {
+          templateText += '— No weapons added yet'
+        } else {
+          for (const [weaponKey, slots] of Object.entries(template.weapons)) {
+            const weapon = getWeapon(weaponKey)
+            if (weapon) {
+              templateText += `${weapon.emoji} **${weapon.name}** x${slots}\n`
+            }
+          }
+        }
+
+        await interaction.reply({ content: templateText, ephemeral: true })
+        return
+      } else {
+        // List all templates
+        const templates = listTemplates()
+        
+        if (templates.length === 0) {
+          await interaction.reply({ 
+            content: '📋 No templates created yet. Use `/template create` to make one!', 
+            ephemeral: true 
+          })
+          return
+        }
+
+        let listText = '**📋 Available Templates:**\n\n'
+        for (const template of templates) {
+          const weaponCount = Object.keys(template.weapons).length
+          listText += `⚔️ **${template.name}** (${weaponCount} weapons)\n`
+          if (template.description) {
+            listText += `   *${template.description}*\n`
+          }
+        }
+        listText += '\n*Use `/template view template:<name>` to see details*'
+
+        await interaction.reply({ content: listText, ephemeral: true })
+        return
+      }
+    }
+
+    if (sub === 'delete') {
+      const templateName = interaction.options.getString('template').toLowerCase()
+
+      if (!getTemplate(templateName)) {
         await interaction.reply({ 
-          content: '📋 No weapon-specific roles configured yet.', 
+          content: `❌ Template **${templateName}** not found.`, 
           ephemeral: true 
         })
         return
       }
 
-      let rosterText = '**📋 Current Roster Configuration:**\n\n'
-      for (const [key, data] of Object.entries(contentData.weaponRoles)) {
-        rosterText += `${data.weapon.emoji} **${data.weapon.name}** - ${data.slots} slots (${data.signups.length} filled)\n`
-      }
-
+      deleteTemplate(templateName)
       await interaction.reply({ 
-        content: rosterText, 
+        content: `✅ Deleted template **${templateName}**!`, 
         ephemeral: true 
       })
       return
@@ -617,6 +776,7 @@ if (sub === 'attendance') {
         const title = interaction.options.getString('title')
         const massTimeStr = interaction.options.getString('mass_time')
         const template = interaction.options.getString('template')
+        const weaponTemplateName = interaction.options.getString('weapon_template')
         const maxPlayers = interaction.options.getInteger('max_players')
         const customDescription = interaction.options.getString('description')
 
@@ -706,7 +866,25 @@ if (sub === 'attendance') {
           },
           templateKey: template,
           isGameTemplate,
-          customDescription
+          customDescription,
+          weaponRoles: {} // Initialize weapon roles
+        }
+
+        // Load weapon template if specified
+        if (weaponTemplateName) {
+          const weaponTemplate = getTemplate(weaponTemplateName)
+          if (weaponTemplate && weaponTemplate.weapons) {
+            for (const [weaponKey, slots] of Object.entries(weaponTemplate.weapons)) {
+              const weapon = getWeapon(weaponKey)
+              if (weapon) {
+                contentData.weaponRoles[weaponKey] = {
+                  weapon: weapon,
+                  slots: slots,
+                  signups: []
+                }
+              }
+            }
+          }
         }
 
         store.create(interaction.channelId, contentData)
@@ -880,9 +1058,12 @@ if (sub === 'attendance') {
   // Join the rest of the message to support multi-word weapon names
   const input = parts.slice(1).join('-')
   
+  // Resolve weapon alias to actual weapon key
+  const resolvedWeaponKey = resolveWeaponAlias(input)
+  
   // Check if this is a weapon signup
-  if (data.weaponRoles && data.weaponRoles[input]) {
-    const weaponData = data.weaponRoles[input]
+  if (data.weaponRoles && data.weaponRoles[resolvedWeaponKey]) {
+    const weaponData = data.weaponRoles[resolvedWeaponKey]
     const weapon = weaponData.weapon
 
     // Remove user from all weapon roles first
